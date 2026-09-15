@@ -1458,6 +1458,9 @@ textarea:focus-visible {
     padding: 2px 4px;
     font-size: 9px;
   }
+  .nav-item:nth-child(1) { order: 3; }
+  .nav-item:nth-child(2) { order: 2; }
+  .nav-item:nth-child(3) { order: 1; }
   .sidebar-bottom { display: none; }
   .content { padding: 35px 16px calc(190px + env(safe-area-inset-bottom)); }
   .content-heading { align-items: start; }
@@ -1470,7 +1473,7 @@ textarea:focus-visible {
   .calendar-day { padding: 5px 2px; border-radius: 10px; }
   .calendar-day.today > span { width: 23px; height: 23px; }
   .calendar-agenda { margin-top: 12px; }
-  .calendar-add-button { width: 42px; padding: 0; justify-content: center; font-size: 0; }
+  .calendar-add-button { width: 42px; padding: 0; justify-content: center; gap: 0; font-size: 0; }
 
   .add-item-form {
     position: fixed;
