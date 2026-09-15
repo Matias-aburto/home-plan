@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Check,
   Copy,
+  Download,
   House,
   ListTodo,
   LogIn,
@@ -72,6 +73,11 @@ type Family = {
 type View = "welcome" | "create" | "join";
 type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId">;
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
 const socket = io();
 
 class ApiError extends Error {
@@ -116,7 +122,55 @@ function archiveCompletedLocally<T extends {
   }));
 }
 
+function useInstallApp() {
+  const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installed, setInstalled] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches
+      || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+    setInstalled(standalone);
+
+    const onBeforeInstall = (event: Event) => {
+      event.preventDefault();
+      setPrompt(event as BeforeInstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setInstalled(true);
+      setPrompt(null);
+      setShowGuide(false);
+    };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  async function install() {
+    if (prompt) {
+      await prompt.prompt();
+      const choice = await prompt.userChoice;
+      if (choice.outcome === "accepted") setPrompt(null);
+      return;
+    }
+    if (isIos) setShowGuide(true);
+  }
+
+  return {
+    canInstall: !installed && (Boolean(prompt) || isIos),
+    install,
+    showGuide,
+    closeGuide: () => setShowGuide(false)
+  };
+}
+
 export default function App() {
+  const installApp = useInstallApp();
   const [family, setFamily] = useState<Family | null>(null);
   const [familyId, setFamilyId] = useState(initialFamilyId);
   const [view, setView] = useState<View>("welcome");
@@ -255,28 +309,38 @@ export default function App() {
   if (loading) return <Loading />;
   if (!family) {
     return (
-      <Onboarding
-        view={view}
-        error={error}
-        onViewChange={(nextView) => {
-          setError("");
-          setView(nextView);
-        }}
-        onError={setError}
-        onEnter={enterFamily}
-      />
+      <>
+        <Onboarding
+          view={view}
+          error={error}
+          canInstall={installApp.canInstall}
+          onInstall={installApp.install}
+          onViewChange={(nextView) => {
+            setError("");
+            setView(nextView);
+          }}
+          onError={setError}
+          onEnter={enterFamily}
+        />
+        {installApp.showGuide && <IosInstallGuide onClose={installApp.closeGuide} />}
+      </>
     );
   }
 
   return (
-    <FamilyHome
-      family={family}
-      connected={connected}
-      online={online}
-      pendingCount={pendingCount}
-      onMutate={mutateOffline}
-      onLeave={leaveFamily}
-    />
+    <>
+      <FamilyHome
+        family={family}
+        connected={connected}
+        online={online}
+        pendingCount={pendingCount}
+        canInstall={installApp.canInstall}
+        onInstall={installApp.install}
+        onMutate={mutateOffline}
+        onLeave={leaveFamily}
+      />
+      {installApp.showGuide && <IosInstallGuide onClose={installApp.closeGuide} />}
+    </>
   );
 }
 
@@ -294,12 +358,16 @@ function Loading() {
 function Onboarding({
   view,
   error,
+  canInstall,
+  onInstall,
   onViewChange,
   onError,
   onEnter
 }: {
   view: View;
   error: string;
+  canInstall: boolean;
+  onInstall: () => Promise<void>;
   onViewChange: (view: View) => void;
   onError: (message: string) => void;
   onEnter: (family: Family) => void;
@@ -389,7 +457,14 @@ function Onboarding({
             </form>
           </div>
         )}
-        <footer>Sin cuentas por ahora · Comparte solo con tu hogar</footer>
+        <footer>
+          <span>Sin cuentas por ahora · Comparte solo con tu hogar</span>
+          {canInstall && (
+            <button className="install-link" onClick={onInstall}>
+              <Download size={15} /> Instalar Casa
+            </button>
+          )}
+        </footer>
       </section>
     </main>
   );
@@ -400,6 +475,8 @@ function FamilyHome({
   connected,
   online,
   pendingCount,
+  canInstall,
+  onInstall,
   onMutate,
   onLeave
 }: {
@@ -407,6 +484,8 @@ function FamilyHome({
   connected: boolean;
   online: boolean;
   pendingCount: number;
+  canInstall: boolean;
+  onInstall: () => Promise<void>;
   onMutate: (family: Family, operation: OfflineMutation) => Promise<void>;
   onLeave: () => void;
 }) {
@@ -545,6 +624,12 @@ function FamilyHome({
           </div>
         </div>
         <div className="header-actions">
+          {canInstall && (
+            <button className="install-button" onClick={onInstall}>
+              <Download size={17} />
+              <span>Instalar</span>
+            </button>
+          )}
           <div className="member-avatars" aria-label="Miembros: Matías y Francisca">
             <span className="avatar-matias" title="Matías">M</span>
             <span className="avatar-francisca" title="Francisca">F</span>
@@ -1023,6 +1108,36 @@ function TaskRow({
       <button className="delete-button" onClick={() => onDelete(task)} aria-label={`Eliminar ${task.title}`}>
         <Trash2 size={17} />
       </button>
+    </div>
+  );
+}
+
+function IosInstallGuide({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="modal-backdrop install-guide-backdrop" onMouseDown={onClose}>
+      <section className="install-guide animate-in" onMouseDown={(event) => event.stopPropagation()}>
+        <header>
+          <div className="install-guide-icon"><Download size={23} /></div>
+          <button onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
+        </header>
+        <h2>Instala Casa</h2>
+        <p>En Safari, agrégala a tu inicio para abrirla como una app.</p>
+        <ol>
+          <li>
+            <span><Share2 size={18} /></span>
+            <div><strong>Abre Compartir</strong><small>Está en la barra de Safari.</small></div>
+          </li>
+          <li>
+            <span><Plus size={18} /></span>
+            <div><strong>Agregar a pantalla de inicio</strong><small>Desliza el menú si no aparece.</small></div>
+          </li>
+          <li>
+            <span><House size={18} /></span>
+            <div><strong>Confirma con “Agregar”</strong><small>Casa aparecerá junto a tus apps.</small></div>
+          </li>
+        </ol>
+        <button className="primary-button" onClick={onClose}>Entendido</button>
+      </section>
     </div>
   );
 }

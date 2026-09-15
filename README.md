@@ -31,6 +31,11 @@ npm start
 
 El servidor publica la aplicación completa en `http://localhost:3001`.
 
+## Instalación móvil
+
+- Android: usa “Instalar Casa” dentro de la aplicación o “Agregar a pantalla principal” en Chrome.
+- iPhone/iPad: abre la aplicación en Safari, pulsa Compartir y elige “Agregar a pantalla de inicio”.
+
 ## Alcance actual
 
 - Sin cuentas: el código familiar funciona como acceso compartido.
