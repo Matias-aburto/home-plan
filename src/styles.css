@@ -1148,6 +1148,12 @@ textarea:focus-visible {
 }
 .calendar-modal label small { color: #9aa39e; font-size: 10px; font-weight: 500; }
 
+.calendar-field-label {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
 .calendar-modal input,
 .calendar-modal select,
 .calendar-modal textarea {

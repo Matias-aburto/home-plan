@@ -1494,8 +1494,14 @@ function CalendarEntryModal({
             />
           </label>
           <div className="calendar-form-row">
-            <label>Fecha<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
-            <label>Hora <small>Opcional</small><input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></label>
+            <label>
+              <span className="calendar-field-label">Fecha</span>
+              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+            </label>
+            <label>
+              <span className="calendar-field-label">Hora <small>Opcional</small></span>
+              <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
+            </label>
           </div>
           <label>Repetición
             <select value={recurrence} onChange={(event) => setRecurrence(event.target.value as CalendarEntry["recurrence"])}>
