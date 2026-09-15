@@ -118,6 +118,11 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
   return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);
 }
 
+function capitalizeFirst(input: string) {
+  const text = input.trim();
+  return text ? text[0].toLocaleUpperCase("es-CL") + text.slice(1) : text;
+}
+
 function initialFamilyId() {
   const fromUrl = new URLSearchParams(window.location.search).get("familia");
   return (fromUrl || localStorage.getItem("familyId") || "").toUpperCase();
@@ -581,9 +586,10 @@ function FamilyHome({
     setAdding(true);
     try {
       const now = new Date().toISOString();
+      const formattedName = capitalizeFirst(name);
       const item: ShoppingItem = {
         id: crypto.randomUUID(),
-        name: name.trim(),
+        name: formattedName,
         locationId: locationId || null,
         completed: false,
         createdAt: now,
@@ -975,9 +981,10 @@ function TasksSection({
     setAdding(true);
     try {
       const now = new Date().toISOString();
+      const formattedTitle = capitalizeFirst(title);
       const task: HouseholdTask = {
         id: crypto.randomUUID(),
-        title: title.trim(),
+        title: formattedTitle,
         assignee,
         completed: false,
         createdAt: now,

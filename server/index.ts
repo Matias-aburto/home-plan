@@ -28,6 +28,10 @@ function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
+function capitalizeFirst(input: string) {
+  return input ? input[0].toLocaleUpperCase("es-CL") + input.slice(1) : input;
+}
+
 function readCalendarEntry(body: Record<string, unknown>) {
   const title = cleanText(body.title, 100);
   const kind = body.kind === "reminder" ? "reminder" : body.kind === "event" ? "event" : null;
@@ -103,7 +107,7 @@ app.get("/api/families/:id/suggestions", async (request, response) => {
 });
 
 app.post("/api/families/:id/items", async (request, response) => {
-  const name = cleanText(request.body.name, 80);
+  const name = capitalizeFirst(cleanText(request.body.name, 80));
   const locationId = cleanText(request.body.locationId, 30) || null;
   const requestedId = cleanText(request.body.id, 50) || undefined;
   if (!name) return response.status(400).json({ message: "Escribe qué necesitas comprar." });
@@ -138,7 +142,7 @@ app.delete("/api/families/:id/items/:itemId", async (request, response) => {
 });
 
 app.post("/api/families/:id/tasks", async (request, response) => {
-  const title = cleanText(request.body.title, 100);
+  const title = capitalizeFirst(cleanText(request.body.title, 100));
   const assignee: Assignee | null = request.body.assignee === "Matías" || request.body.assignee === "Francisca"
     ? request.body.assignee
     : null;
