@@ -789,6 +789,36 @@ textarea:focus-visible {
   animation: particle-burst 520ms ease-out both;
 }
 
+.shopping-row.restoring {
+  z-index: 1;
+  animation: restore-glow 460ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.shopping-row.completed.restoring .check-button {
+  animation: check-release 430ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.shopping-row.restoring .check-button svg {
+  animation: check-leave 300ms ease-in both;
+}
+
+.shopping-row.completed.restoring .item-copy span {
+  animation: text-restore 460ms ease both;
+}
+
+.shopping-row.restoring::after {
+  position: absolute;
+  top: 21px;
+  left: 19px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--green);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  animation: restore-ring 460ms ease-out both;
+}
+
 .completed-section { display: grid; gap: 8px; margin-top: 22px; }
 .completed-section > h3 { margin: 0 0 2px; color: #8b958f; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 
@@ -1374,6 +1404,34 @@ textarea:focus-visible {
   0% { opacity: 0; transform: scale(.25) rotate(0); }
   24% { opacity: 1; }
   100% { opacity: 0; transform: scale(1.35) rotate(18deg); }
+}
+
+@keyframes restore-glow {
+  0% { transform: scale(1); background: rgba(255,255,255,.55); }
+  45% { transform: scale(1.008); background: #f3f7f4; box-shadow: 0 8px 24px rgba(31, 107, 79, .09); }
+  100% { transform: scale(1); background: var(--surface); box-shadow: 0 0 0 rgba(31, 107, 79, 0); }
+}
+
+@keyframes check-release {
+  0% { transform: scale(1); color: #fff; background: var(--green); border-color: var(--green); }
+  55% { transform: scale(.78); color: transparent; background: #dcebe3; border-color: #8bb39f; }
+  100% { transform: scale(1); color: transparent; background: #fff; border-color: #cfd6d1; }
+}
+
+@keyframes check-leave {
+  from { opacity: 1; transform: scale(1) rotate(0); }
+  to { opacity: 0; transform: scale(.35) rotate(18deg); }
+}
+
+@keyframes text-restore {
+  0% { color: #89928d; text-decoration: line-through; transform: translateX(0); }
+  48% { color: #63736a; text-decoration: none; transform: translateX(-2px); }
+  100% { color: var(--ink); text-decoration: none; transform: translateX(0); }
+}
+
+@keyframes restore-ring {
+  from { opacity: .55; transform: scale(.65); }
+  to { opacity: 0; transform: scale(1.8); }
 }
 
 @keyframes breathe {

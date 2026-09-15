@@ -901,11 +901,18 @@ function ShoppingRow({
   onDelete: (item: ShoppingItem) => void;
 }) {
   const [completing, setCompleting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const location = locations.find(({ id }) => id === item.locationId);
 
   async function toggle() {
-    if (completing) return;
-    if (item.completed) return onToggle(item);
+    if (completing || restoring) return;
+    if (item.completed) {
+      setRestoring(true);
+      await new Promise((resolve) => window.setTimeout(resolve, 460));
+      await onToggle(item);
+      setRestoring(false);
+      return;
+    }
     setCompleting(true);
     await new Promise((resolve) => window.setTimeout(resolve, 520));
     await onToggle(item);
@@ -913,7 +920,7 @@ function ShoppingRow({
   }
 
   return (
-    <div className={`shopping-row ${item.completed ? "completed" : ""} ${completing ? "completing" : ""}`}>
+    <div className={`shopping-row ${item.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""}`}>
       <button className="check-button" onClick={toggle} aria-label={item.completed ? "Marcar pendiente" : "Marcar comprado"}>
         {(item.completed || completing) && <Check size={16} strokeWidth={3} />}
       </button>
@@ -1124,10 +1131,17 @@ function TaskRow({
   onDelete: (task: HouseholdTask) => void;
 }) {
   const [completing, setCompleting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   async function toggle() {
-    if (completing) return;
-    if (task.completed) return onToggle(task);
+    if (completing || restoring) return;
+    if (task.completed) {
+      setRestoring(true);
+      await new Promise((resolve) => window.setTimeout(resolve, 460));
+      await onToggle(task);
+      setRestoring(false);
+      return;
+    }
     setCompleting(true);
     await new Promise((resolve) => window.setTimeout(resolve, 520));
     await onToggle(task);
@@ -1135,7 +1149,7 @@ function TaskRow({
   }
 
   return (
-    <div className={`shopping-row ${task.completed ? "completed" : ""} ${completing ? "completing" : ""}`}>
+    <div className={`shopping-row ${task.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""}`}>
       <button className="check-button" onClick={toggle} aria-label={task.completed ? "Marcar pendiente" : "Marcar completada"}>
         {(task.completed || completing) && <Check size={16} strokeWidth={3} />}
       </button>
