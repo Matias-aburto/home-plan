@@ -942,6 +942,19 @@ input:focus-visible {
   .small-brand-mark { width: 38px; height: 38px; }
   .family-identity h1 { max-width: 155px; font-size: 15px; }
   .connection-status { display: none; }
+  .connection-status.attention {
+    position: fixed;
+    z-index: 11;
+    top: 80px;
+    right: 12px;
+    padding: 7px 10px;
+    display: flex;
+    color: #735b36;
+    background: #fff6e6;
+    border: 1px solid #f0dfbe;
+    border-radius: 10px;
+    box-shadow: 0 5px 18px rgba(55, 47, 34, .1);
+  }
   .header-actions { gap: 10px; }
   .member-avatars span { width: 31px; height: 31px; font-size: 11px; }
   .share-button { width: 42px; padding: 0; justify-content: center; }

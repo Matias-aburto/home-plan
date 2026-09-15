@@ -80,9 +80,10 @@ app.get("/api/families/:id/suggestions", async (request, response) => {
 app.post("/api/families/:id/items", async (request, response) => {
   const name = cleanText(request.body.name, 80);
   const locationId = cleanText(request.body.locationId, 30) || null;
+  const requestedId = cleanText(request.body.id, 50) || undefined;
   if (!name) return response.status(400).json({ message: "Escribe qué necesitas comprar." });
 
-  const item = await repository.addItem(request.params.id, name, locationId);
+  const item = await repository.addItem(request.params.id, name, locationId, requestedId);
   if (!item) return response.status(404).json({ message: "No encontramos esa familia." });
   await broadcast(request.params.id);
   return response.status(201).json(item);
@@ -103,8 +104,10 @@ app.patch("/api/families/:id/items/:itemId", async (request, response) => {
 });
 
 app.delete("/api/families/:id/items/:itemId", async (request, response) => {
-  const deleted = await repository.deleteItem(request.params.id, request.params.itemId);
-  if (!deleted) return response.status(404).json({ message: "No encontramos ese producto." });
+  if (!(await repository.getFamily(request.params.id))) {
+    return response.status(404).json({ message: "No encontramos esa familia." });
+  }
+  await repository.deleteItem(request.params.id, request.params.itemId);
   await broadcast(request.params.id);
   return response.status(204).send();
 });
@@ -114,9 +117,10 @@ app.post("/api/families/:id/tasks", async (request, response) => {
   const assignee: Assignee | null = request.body.assignee === "Matías" || request.body.assignee === "Francisca"
     ? request.body.assignee
     : null;
+  const requestedId = cleanText(request.body.id, 50) || undefined;
   if (!title) return response.status(400).json({ message: "Escribe qué hay que hacer." });
 
-  const task = await repository.addTask(request.params.id, title, assignee);
+  const task = await repository.addTask(request.params.id, title, assignee, requestedId);
   if (!task) return response.status(404).json({ message: "No encontramos esa familia." });
   await broadcast(request.params.id);
   return response.status(201).json(task);
@@ -136,8 +140,10 @@ app.patch("/api/families/:id/tasks/:taskId", async (request, response) => {
 });
 
 app.delete("/api/families/:id/tasks/:taskId", async (request, response) => {
-  const deleted = await repository.deleteTask(request.params.id, request.params.taskId);
-  if (!deleted) return response.status(404).json({ message: "No encontramos esa tarea." });
+  if (!(await repository.getFamily(request.params.id))) {
+    return response.status(404).json({ message: "No encontramos esa familia." });
+  }
+  await repository.deleteTask(request.params.id, request.params.taskId);
   await broadcast(request.params.id);
   return response.status(204).send();
 });

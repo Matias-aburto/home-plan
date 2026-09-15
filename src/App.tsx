@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Check,
@@ -17,6 +17,14 @@ import {
   X
 } from "lucide-react";
 import { io } from "socket.io-client";
+import {
+  cacheFamily,
+  enqueueOperation,
+  getCachedFamily,
+  getPendingOperations,
+  removeOperation,
+  type QueuedOperation
+} from "./offline";
 
 type ShoppingItem = {
   id: string;
@@ -62,8 +70,15 @@ type Family = {
 };
 
 type View = "welcome" | "create" | "join";
+type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId">;
 
 const socket = io();
+
+class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
 
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -72,7 +87,7 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message || "Algo salió mal. Inténtalo nuevamente.");
+    throw new ApiError(body.message || "Algo salió mal. Inténtalo nuevamente.", response.status);
   }
   return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);
 }
@@ -82,6 +97,25 @@ function initialFamilyId() {
   return (fromUrl || localStorage.getItem("familyId") || "").toUpperCase();
 }
 
+function archiveCompletedLocally<T extends {
+  completed: boolean;
+  completedAt: string | null;
+  updatedAt: string;
+  archivedAt: string | null;
+}>(entries: T[]) {
+  const completed = entries
+    .filter((entry) => entry.completed)
+    .sort((a, b) => (b.completedAt || b.updatedAt).localeCompare(a.completedAt || a.updatedAt));
+  const visibleIds = new Set(completed.slice(0, 5));
+  const now = new Date().toISOString();
+  return entries.map((entry) => ({
+    ...entry,
+    archivedAt: entry.completed
+      ? visibleIds.has(entry) ? null : entry.archivedAt || now
+      : null
+  }));
+}
+
 export default function App() {
   const [family, setFamily] = useState<Family | null>(null);
   const [familyId, setFamilyId] = useState(initialFamilyId);
@@ -89,17 +123,68 @@ export default function App() {
   const [loading, setLoading] = useState(Boolean(familyId));
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(socket.connected);
+  const [online, setOnline] = useState(navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const syncQueue = useCallback(async () => {
+    if (!familyId) return;
+    const operations = await getPendingOperations(familyId);
+    setPendingCount(operations.length);
+    if (!navigator.onLine || operations.length === 0) return;
+
+    for (const operation of operations) {
+      try {
+        await api(operation.url, {
+          method: operation.method,
+          body: operation.body ? JSON.stringify(operation.body) : undefined
+        });
+        await removeOperation(operation.id);
+        setPendingCount((count) => Math.max(0, count - 1));
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          await removeOperation(operation.id);
+          setPendingCount((count) => Math.max(0, count - 1));
+          continue;
+        }
+        return;
+      }
+    }
+
+    try {
+      const freshFamily = await api<Family>(`/api/families/${familyId}`);
+      setFamily(freshFamily);
+      await cacheFamily(freshFamily);
+    } catch {
+      // La cola ya quedó enviada; se actualizará en la próxima reconexión.
+    }
+  }, [familyId]);
 
   useEffect(() => {
-    const onConnect = () => setConnected(true);
+    const onConnect = () => {
+      setConnected(true);
+      void syncQueue();
+    };
     const onDisconnect = () => setConnected(false);
+    const onOnline = () => {
+      setOnline(true);
+      void syncQueue();
+    };
+    const onOffline = () => {
+      setOnline(false);
+      setConnected(false);
+    };
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    void syncQueue();
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
-  }, []);
+  }, [syncQueue]);
 
   useEffect(() => {
     if (!familyId) return;
@@ -107,6 +192,7 @@ export default function App() {
     api<Family>(`/api/families/${familyId}`)
       .then((nextFamily) => {
         setFamily(nextFamily);
+        void cacheFamily(nextFamily);
         setError("");
         localStorage.setItem("familyId", nextFamily.id);
         const url = new URL(window.location.href);
@@ -114,17 +200,29 @@ export default function App() {
         window.history.replaceState({}, "", url);
         socket.emit("family:join", nextFamily.id);
       })
-      .catch((requestError: Error) => {
-        setError(requestError.message);
-        localStorage.removeItem("familyId");
-        setFamilyId("");
+      .catch(async (requestError: Error) => {
+        const cachedFamily = await getCachedFamily<Family>(familyId);
+        if (cachedFamily) {
+          setFamily(cachedFamily);
+          setError("");
+          socket.emit("family:join", cachedFamily.id);
+          return;
+        }
+        setError(navigator.onLine ? requestError.message : "Necesitas conectarte una vez antes de usar esta familia sin internet.");
+        if (navigator.onLine) {
+          localStorage.removeItem("familyId");
+          setFamilyId("");
+        }
       })
       .finally(() => setLoading(false));
   }, [familyId]);
 
   useEffect(() => {
-    const updateFamily = (nextFamily: Family) => {
-      if (nextFamily.id === familyId) setFamily(nextFamily);
+    const updateFamily = async (nextFamily: Family) => {
+      if (nextFamily.id !== familyId) return;
+      if ((await getPendingOperations(familyId)).length > 0) return;
+      setFamily(nextFamily);
+      await cacheFamily(nextFamily);
     };
     socket.on("family:updated", updateFamily);
     return () => {
@@ -135,6 +233,15 @@ export default function App() {
   function enterFamily(nextFamily: Family) {
     setFamily(nextFamily);
     setFamilyId(nextFamily.id);
+    void cacheFamily(nextFamily);
+  }
+
+  async function mutateOffline(nextFamily: Family, operation: OfflineMutation) {
+    setFamily(nextFamily);
+    await cacheFamily(nextFamily);
+    await enqueueOperation({ ...operation, familyId: nextFamily.id });
+    setPendingCount((count) => count + 1);
+    await syncQueue();
   }
 
   function leaveFamily() {
@@ -161,7 +268,16 @@ export default function App() {
     );
   }
 
-  return <FamilyHome family={family} connected={connected} onLeave={leaveFamily} />;
+  return (
+    <FamilyHome
+      family={family}
+      connected={connected}
+      online={online}
+      pendingCount={pendingCount}
+      onMutate={mutateOffline}
+      onLeave={leaveFamily}
+    />
+  );
 }
 
 function Loading() {
@@ -282,10 +398,16 @@ function Onboarding({
 function FamilyHome({
   family,
   connected,
+  online,
+  pendingCount,
+  onMutate,
   onLeave
 }: {
   family: Family;
   connected: boolean;
+  online: boolean;
+  pendingCount: number;
+  onMutate: (family: Family, operation: OfflineMutation) => Promise<void>;
   onLeave: () => void;
 }) {
   const [activeSection, setActiveSection] = useState<"shopping" | "tasks">("shopping");
@@ -348,9 +470,21 @@ function FamilyHome({
     if (!name.trim()) return;
     setAdding(true);
     try {
-      await api(`/api/families/${family.id}/items`, {
+      const now = new Date().toISOString();
+      const item: ShoppingItem = {
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        locationId: locationId || null,
+        completed: false,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: null,
+        archivedAt: null
+      };
+      await onMutate({ ...family, items: [item, ...family.items] }, {
+        url: `/api/families/${family.id}/items`,
         method: "POST",
-        body: JSON.stringify({ name, locationId })
+        body: { id: item.id, name: item.name, locationId: item.locationId }
       });
       setName("");
       setSuggestions([]);
@@ -362,14 +496,25 @@ function FamilyHome({
   }
 
   async function toggleItem(item: ShoppingItem) {
-    await api(`/api/families/${family.id}/items/${item.id}`, {
+    const completed = !item.completed;
+    const now = new Date().toISOString();
+    const items = archiveCompletedLocally(family.items.map((candidate) =>
+      candidate.id === item.id
+        ? { ...candidate, completed, updatedAt: now, completedAt: completed ? now : null, archivedAt: null }
+        : candidate
+    ));
+    await onMutate({ ...family, items }, {
+      url: `/api/families/${family.id}/items/${item.id}`,
       method: "PATCH",
-      body: JSON.stringify({ completed: !item.completed })
+      body: { completed }
     });
   }
 
   async function deleteItem(item: ShoppingItem) {
-    await api(`/api/families/${family.id}/items/${item.id}`, { method: "DELETE" });
+    await onMutate({ ...family, items: family.items.filter(({ id }) => id !== item.id) }, {
+      url: `/api/families/${family.id}/items/${item.id}`,
+      method: "DELETE"
+    });
   }
 
   function selectSuggestion(suggestion: Suggestion) {
@@ -404,8 +549,13 @@ function FamilyHome({
             <span className="avatar-matias" title="Matías">M</span>
             <span className="avatar-francisca" title="Francisca">F</span>
           </div>
-          <span className={`connection-status ${connected ? "online" : ""}`}>
-            <i /> {connected ? "Sincronizado" : "Reconectando"}
+          <span className={`connection-status ${connected && online && pendingCount === 0 ? "online" : ""} ${!online || pendingCount ? "attention" : ""}`}>
+            <i />
+            {!online
+              ? `Sin conexión${pendingCount ? ` · ${pendingCount} pendiente${pendingCount === 1 ? "" : "s"}` : ""}`
+              : pendingCount
+                ? `Sincronizando · ${pendingCount}`
+                : connected ? "Sincronizado" : "Reconectando"}
           </span>
           <button className="share-button" onClick={shareFamily}>
             {shareLabel === "Copiado" ? <Copy size={17} /> : <Share2 size={17} />}
@@ -573,7 +723,7 @@ function FamilyHome({
             )}
           </div>
         </section>
-        {activeSection === "tasks" && <TasksSection family={family} />}
+        {activeSection === "tasks" && <TasksSection family={family} onMutate={onMutate} />}
       </div>
       {managingLocations && (
         <LocationManager family={family} onClose={() => setManagingLocations(false)} />
@@ -659,7 +809,13 @@ function ShoppingRow({
   );
 }
 
-function TasksSection({ family }: { family: Family }) {
+function TasksSection({
+  family,
+  onMutate
+}: {
+  family: Family;
+  onMutate: (family: Family, operation: OfflineMutation) => Promise<void>;
+}) {
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState<Assignee | null>(null);
   const [filter, setFilter] = useState<"all" | "none" | Assignee>("all");
@@ -679,9 +835,21 @@ function TasksSection({ family }: { family: Family }) {
     if (!title.trim()) return;
     setAdding(true);
     try {
-      await api(`/api/families/${family.id}/tasks`, {
+      const now = new Date().toISOString();
+      const task: HouseholdTask = {
+        id: crypto.randomUUID(),
+        title: title.trim(),
+        assignee,
+        completed: false,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: null,
+        archivedAt: null
+      };
+      await onMutate({ ...family, tasks: [task, ...family.tasks] }, {
+        url: `/api/families/${family.id}/tasks`,
         method: "POST",
-        body: JSON.stringify({ title, assignee })
+        body: { id: task.id, title: task.title, assignee }
       });
       setTitle("");
     } finally {
@@ -690,14 +858,25 @@ function TasksSection({ family }: { family: Family }) {
   }
 
   async function toggleTask(task: HouseholdTask) {
-    await api(`/api/families/${family.id}/tasks/${task.id}`, {
+    const completed = !task.completed;
+    const now = new Date().toISOString();
+    const tasks = archiveCompletedLocally(family.tasks.map((candidate) =>
+      candidate.id === task.id
+        ? { ...candidate, completed, updatedAt: now, completedAt: completed ? now : null, archivedAt: null }
+        : candidate
+    ));
+    await onMutate({ ...family, tasks }, {
+      url: `/api/families/${family.id}/tasks/${task.id}`,
       method: "PATCH",
-      body: JSON.stringify({ completed: !task.completed })
+      body: { completed }
     });
   }
 
   async function deleteTask(task: HouseholdTask) {
-    await api(`/api/families/${family.id}/tasks/${task.id}`, { method: "DELETE" });
+    await onMutate({ ...family, tasks: family.tasks.filter(({ id }) => id !== task.id) }, {
+      url: `/api/families/${family.id}/tasks/${task.id}`,
+      method: "DELETE"
+    });
   }
 
   function chooseAssignee(nextAssignee: Assignee | null) {

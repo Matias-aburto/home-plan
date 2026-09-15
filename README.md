@@ -37,6 +37,7 @@ El servidor publica la aplicación completa en `http://localhost:3001`.
 - Los datos se guardan en Turso/libSQL.
 - La sincronización usa WebSockets.
 - La aplicación es una PWA instalable.
+- Compras y tareas pueden modificarse sin conexión; IndexedDB conserva una cola que se sincroniza automáticamente.
 - La familia de prueba siempre está disponible con el código `CASA`.
 
 Antes de guardar información sensible conviene agregar autenticación y permisos por familia.

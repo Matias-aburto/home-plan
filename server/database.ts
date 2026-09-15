@@ -257,18 +257,20 @@ export class HomeRepository {
     }));
   }
 
-  async addItem(familyId: string, name: string, locationId: string | null) {
+  async addItem(familyId: string, name: string, locationId: string | null, requestedId?: string) {
     const family = await this.getFamily(familyId);
     if (!family) return null;
+    const existing = requestedId ? family.items.find(({ id }) => id === requestedId) : undefined;
+    if (existing) return existing;
     const validLocation = family.locations.some(({ id }) => id === locationId) ? locationId : null;
     const now = new Date().toISOString();
     const item: ShoppingItem = {
-      id: nanoid(), name, locationId: validLocation, completed: false,
+      id: requestedId || nanoid(), name, locationId: validLocation, completed: false,
       createdAt: now, updatedAt: now, completedAt: null, archivedAt: null
     };
     await this.db.batch([
       {
-        sql: `INSERT INTO shopping_items
+        sql: `INSERT OR IGNORE INTO shopping_items
           (id, family_id, name, location_id, completed, created_at, updated_at)
           VALUES (?, ?, ?, ?, 0, ?, ?)`,
         args: [item.id, familyId.toUpperCase(), name, value(validLocation), now, now]
@@ -304,15 +306,18 @@ export class HomeRepository {
     return result.rowsAffected > 0;
   }
 
-  async addTask(familyId: string, title: string, assignee: Assignee | null) {
-    if (!(await this.getFamily(familyId))) return null;
+  async addTask(familyId: string, title: string, assignee: Assignee | null, requestedId?: string) {
+    const family = await this.getFamily(familyId);
+    if (!family) return null;
+    const existing = requestedId ? family.tasks.find(({ id }) => id === requestedId) : undefined;
+    if (existing) return existing;
     const now = new Date().toISOString();
     const task: HouseholdTask = {
-      id: nanoid(), title, assignee, completed: false,
+      id: requestedId || nanoid(), title, assignee, completed: false,
       createdAt: now, updatedAt: now, completedAt: null, archivedAt: null
     };
     await this.db.execute({
-      sql: `INSERT INTO household_tasks
+      sql: `INSERT OR IGNORE INTO household_tasks
         (id, family_id, title, assignee, completed, created_at, updated_at)
         VALUES (?, ?, ?, ?, 0, ?, ?)`,
       args: [task.id, familyId.toUpperCase(), title, value(assignee), now, now]
