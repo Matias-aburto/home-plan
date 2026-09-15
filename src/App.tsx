@@ -1,14 +1,21 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  Bell,
+  CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
   Copy,
   Download,
   House,
   ListTodo,
   LogIn,
   MapPin,
+  Pencil,
   Plus,
+  Repeat2,
   Settings2,
   Share2,
   ShoppingBasket,
@@ -61,6 +68,18 @@ type HouseholdTask = {
   archivedAt: string | null;
 };
 
+type CalendarEntry = {
+  id: string;
+  title: string;
+  kind: "event" | "reminder";
+  date: string;
+  time: string | null;
+  recurrence: "none" | "yearly";
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type Family = {
   id: string;
   name: string;
@@ -68,6 +87,7 @@ type Family = {
   locations: Location[];
   items: ShoppingItem[];
   tasks: HouseholdTask[];
+  calendarEntries: CalendarEntry[];
 };
 
 type View = "welcome" | "create" | "join";
@@ -101,6 +121,13 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
 function initialFamilyId() {
   const fromUrl = new URLSearchParams(window.location.search).get("familia");
   return (fromUrl || localStorage.getItem("familyId") || "").toUpperCase();
+}
+
+function normalizeFamily(family: Family): Family {
+  return {
+    ...family,
+    calendarEntries: family.calendarEntries || []
+  };
 }
 
 function archiveCompletedLocally<T extends {
@@ -205,7 +232,7 @@ export default function App() {
     }
 
     try {
-      const freshFamily = await api<Family>(`/api/families/${familyId}`);
+      const freshFamily = normalizeFamily(await api<Family>(`/api/families/${familyId}`));
       setFamily(freshFamily);
       await cacheFamily(freshFamily);
     } catch {
@@ -245,8 +272,9 @@ export default function App() {
     setLoading(true);
     api<Family>(`/api/families/${familyId}`)
       .then((nextFamily) => {
-        setFamily(nextFamily);
-        void cacheFamily(nextFamily);
+        const normalizedFamily = normalizeFamily(nextFamily);
+        setFamily(normalizedFamily);
+        void cacheFamily(normalizedFamily);
         setError("");
         localStorage.setItem("familyId", nextFamily.id);
         const url = new URL(window.location.href);
@@ -257,7 +285,7 @@ export default function App() {
       .catch(async (requestError: Error) => {
         const cachedFamily = await getCachedFamily<Family>(familyId);
         if (cachedFamily) {
-          setFamily(cachedFamily);
+          setFamily(normalizeFamily(cachedFamily));
           setError("");
           socket.emit("family:join", cachedFamily.id);
           return;
@@ -275,8 +303,9 @@ export default function App() {
     const updateFamily = async (nextFamily: Family) => {
       if (nextFamily.id !== familyId) return;
       if ((await getPendingOperations(familyId)).length > 0) return;
-      setFamily(nextFamily);
-      await cacheFamily(nextFamily);
+      const normalizedFamily = normalizeFamily(nextFamily);
+      setFamily(normalizedFamily);
+      await cacheFamily(normalizedFamily);
     };
     socket.on("family:updated", updateFamily);
     return () => {
@@ -285,9 +314,10 @@ export default function App() {
   }, [familyId]);
 
   function enterFamily(nextFamily: Family) {
-    setFamily(nextFamily);
+    const normalizedFamily = normalizeFamily(nextFamily);
+    setFamily(normalizedFamily);
     setFamilyId(nextFamily.id);
-    void cacheFamily(nextFamily);
+    void cacheFamily(normalizedFamily);
   }
 
   async function mutateOffline(nextFamily: Family, operation: OfflineMutation) {
@@ -489,7 +519,7 @@ function FamilyHome({
   onMutate: (family: Family, operation: OfflineMutation) => Promise<void>;
   onLeave: () => void;
 }) {
-  const [activeSection, setActiveSection] = useState<"shopping" | "tasks">("shopping");
+  const [activeSection, setActiveSection] = useState<"shopping" | "tasks" | "calendar">("shopping");
   const [name, setName] = useState("");
   const [locationId, setLocationId] = useState(() => localStorage.getItem(`location:${family.id}`) || "");
   const [filter, setFilter] = useState("all");
@@ -669,6 +699,13 @@ function FamilyHome({
               <b>{family.tasks.filter((task) => !task.completed).length}</b>
             )}
           </button>
+          <button
+            className={`nav-item ${activeSection === "calendar" ? "active" : ""}`}
+            onClick={() => setActiveSection("calendar")}
+          >
+            <CalendarDays size={20} />
+            <span>Calendario</span>
+          </button>
           <div className="sidebar-bottom">
             <div className="family-code">
               <span>Código familiar</span>
@@ -809,6 +846,7 @@ function FamilyHome({
           </div>
         </section>
         {activeSection === "tasks" && <TasksSection family={family} onMutate={onMutate} />}
+        {activeSection === "calendar" && <CalendarSection family={family} onMutate={onMutate} />}
       </div>
       {managingLocations && (
         <LocationManager family={family} onClose={() => setManagingLocations(false)} />
@@ -1108,6 +1146,341 @@ function TaskRow({
       <button className="delete-button" onClick={() => onDelete(task)} aria-label={`Eliminar ${task.title}`}>
         <Trash2 size={17} />
       </button>
+    </div>
+  );
+}
+
+const monthFormatter = new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric" });
+const dayFormatter = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long" });
+const compactDateFormatter = new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short" });
+
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function localDate(key: string) {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function occurrenceKey(entry: CalendarEntry, year: number) {
+  if (entry.recurrence === "none") return entry.date;
+  const [, month, day] = entry.date.split("-");
+  const key = `${year}-${month}-${day}`;
+  return dateKey(localDate(key)) === key ? key : null;
+}
+
+function entriesOnDate(entries: CalendarEntry[], key: string) {
+  const year = Number(key.slice(0, 4));
+  return entries
+    .filter((entry) => occurrenceKey(entry, year) === key)
+    .sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
+}
+
+function CalendarSection({
+  family,
+  onMutate
+}: {
+  family: Family;
+  onMutate: (family: Family, operation: OfflineMutation) => Promise<void>;
+}) {
+  const today = dateKey(new Date());
+  const entries = family.calendarEntries || [];
+  const [month, setMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [editing, setEditing] = useState<CalendarEntry | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const days = useMemo(() => {
+    const first = new Date(month.getFullYear(), month.getMonth(), 1);
+    const mondayOffset = (first.getDay() + 6) % 7;
+    const start = new Date(first);
+    start.setDate(first.getDate() - mondayOffset);
+    return Array.from({ length: 42 }, (_, index) => {
+      const day = new Date(start);
+      day.setDate(start.getDate() + index);
+      return day;
+    });
+  }, [month]);
+
+  const selectedEntries = useMemo(
+    () => entriesOnDate(entries, selectedDate),
+    [entries, selectedDate]
+  );
+
+  const upcoming = useMemo(() => {
+    const start = localDate(today);
+    const end = new Date(start);
+    end.setFullYear(end.getFullYear() + 1);
+    return entries.flatMap((entry) => {
+      if (entry.recurrence === "none") {
+        return entry.date >= today && localDate(entry.date) <= end
+          ? [{ entry, key: entry.date }]
+          : [];
+      }
+      let key = occurrenceKey(entry, start.getFullYear());
+      if (!key || key < today) key = occurrenceKey(entry, start.getFullYear() + 1);
+      return key && localDate(key) <= end ? [{ entry, key }] : [];
+    }).sort((a, b) =>
+      a.key.localeCompare(b.key) || (a.entry.time || "99:99").localeCompare(b.entry.time || "99:99")
+    ).slice(0, 6);
+  }, [entries, today]);
+
+  function changeMonth(offset: number) {
+    const next = new Date(month.getFullYear(), month.getMonth() + offset, 1);
+    setMonth(next);
+    setSelectedDate(dateKey(next));
+  }
+
+  function selectDay(day: Date) {
+    setSelectedDate(dateKey(day));
+    if (day.getMonth() !== month.getMonth()) {
+      setMonth(new Date(day.getFullYear(), day.getMonth(), 1));
+    }
+  }
+
+  async function saveEntry(data: Omit<CalendarEntry, "id" | "createdAt" | "updatedAt">) {
+    const now = new Date().toISOString();
+    if (editing) {
+      const updated = { ...editing, ...data, updatedAt: now };
+      await onMutate({
+        ...family,
+        calendarEntries: entries.map((entry) => entry.id === editing.id ? updated : entry)
+      }, {
+        url: `/api/families/${family.id}/calendar/${editing.id}`,
+        method: "PATCH",
+        body: data
+      });
+    } else {
+      const entry: CalendarEntry = {
+        id: crypto.randomUUID(),
+        ...data,
+        createdAt: now,
+        updatedAt: now
+      };
+      await onMutate({ ...family, calendarEntries: [...entries, entry] }, {
+        url: `/api/families/${family.id}/calendar`,
+        method: "POST",
+        body: { id: entry.id, ...data }
+      });
+    }
+    setCreating(false);
+    setEditing(null);
+  }
+
+  async function deleteEntry(entry: CalendarEntry) {
+    await onMutate({
+      ...family,
+      calendarEntries: entries.filter(({ id }) => id !== entry.id)
+    }, {
+      url: `/api/families/${family.id}/calendar/${entry.id}`,
+      method: "DELETE"
+    });
+    setEditing(null);
+  }
+
+  return (
+    <section className="content calendar-content">
+      <div className="content-heading calendar-heading">
+        <div className="title-only"><h2>Calendario</h2></div>
+        <button className="calendar-add-button" onClick={() => setCreating(true)}>
+          <Plus size={18} /> Nuevo
+        </button>
+      </div>
+
+      <div className="calendar-layout">
+        <div className="calendar-card">
+          <header className="calendar-month-header">
+            <button onClick={() => changeMonth(-1)} aria-label="Mes anterior"><ChevronLeft size={20} /></button>
+            <h3>{monthFormatter.format(month)}</h3>
+            <button onClick={() => changeMonth(1)} aria-label="Mes siguiente"><ChevronRight size={20} /></button>
+          </header>
+          <div className="calendar-weekdays" aria-hidden="true">
+            {["L", "M", "M", "J", "V", "S", "D"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}
+          </div>
+          <div className="calendar-grid">
+            {days.map((day) => {
+              const key = dateKey(day);
+              const dayEntries = entriesOnDate(entries, key);
+              return (
+                <button
+                  key={key}
+                  className={`calendar-day ${day.getMonth() !== month.getMonth() ? "outside" : ""} ${key === today ? "today" : ""} ${key === selectedDate ? "selected" : ""}`}
+                  onClick={() => selectDay(day)}
+                  aria-label={dayFormatter.format(day)}
+                >
+                  <span>{day.getDate()}</span>
+                  <i className="calendar-dots">
+                    {dayEntries.slice(0, 3).map((entry) => (
+                      <b key={entry.id} className={entry.kind} />
+                    ))}
+                  </i>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <aside className="calendar-agenda">
+          <div className="agenda-heading">
+            <span>{selectedDate === today ? "Hoy" : dayFormatter.format(localDate(selectedDate))}</span>
+            <button onClick={() => setCreating(true)} aria-label="Agregar en este día"><Plus size={17} /></button>
+          </div>
+          <div className="agenda-list">
+            {selectedEntries.length ? selectedEntries.map((entry) => (
+              <CalendarEntryRow key={entry.id} entry={entry} onEdit={setEditing} />
+            )) : (
+              <div className="agenda-empty">Nada agendado para este día.</div>
+            )}
+          </div>
+
+          <h4>Próximos</h4>
+          <div className="upcoming-list">
+            {upcoming.length ? upcoming.map(({ entry, key }) => (
+              <button key={`${entry.id}-${key}`} onClick={() => {
+                setSelectedDate(key);
+                const date = localDate(key);
+                setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+              }}>
+                <time>{compactDateFormatter.format(localDate(key))}</time>
+                <span>{entry.title}</span>
+                {entry.time && <small>{entry.time}</small>}
+              </button>
+            )) : <span className="agenda-empty">No hay eventos próximos.</span>}
+          </div>
+        </aside>
+      </div>
+
+      {(creating || editing) && (
+        <CalendarEntryModal
+          entry={editing}
+          defaultDate={selectedDate}
+          onSave={saveEntry}
+          onDelete={editing ? () => deleteEntry(editing) : undefined}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+function CalendarEntryRow({
+  entry,
+  onEdit
+}: {
+  entry: CalendarEntry;
+  onEdit: (entry: CalendarEntry) => void;
+}) {
+  return (
+    <button className={`calendar-entry-row ${entry.kind}`} onClick={() => onEdit(entry)}>
+      <span className="entry-kind-icon">{entry.kind === "reminder" ? <Bell size={16} /> : <CalendarDays size={16} />}</span>
+      <span className="entry-copy">
+        <strong>{entry.title}</strong>
+        <small>
+          {entry.time ? <><Clock3 size={12} /> {entry.time}</> : "Todo el día"}
+          {entry.recurrence === "yearly" && <><Repeat2 size={12} /> Anual</>}
+        </small>
+      </span>
+      <Pencil size={15} />
+    </button>
+  );
+}
+
+function CalendarEntryModal({
+  entry,
+  defaultDate,
+  onSave,
+  onDelete,
+  onClose
+}: {
+  entry: CalendarEntry | null;
+  defaultDate: string;
+  onSave: (entry: Omit<CalendarEntry, "id" | "createdAt" | "updatedAt">) => Promise<void>;
+  onDelete?: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(entry?.title || "");
+  const [kind, setKind] = useState<CalendarEntry["kind"]>(entry?.kind || "event");
+  const [date, setDate] = useState(entry?.date || defaultDate);
+  const [time, setTime] = useState(entry?.time || "");
+  const [recurrence, setRecurrence] = useState<CalendarEntry["recurrence"]>(entry?.recurrence || "none");
+  const [notes, setNotes] = useState(entry?.notes || "");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!title.trim() || !date) return;
+    setSaving(true);
+    try {
+      await onSave({
+        title: title.trim(),
+        kind,
+        date,
+        time: time || null,
+        recurrence,
+        notes: notes.trim() || null
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <section className="calendar-modal animate-in" onMouseDown={(event) => event.stopPropagation()}>
+        <header>
+          <div>
+            <div className="eyebrow">{entry ? "Editar" : "Nuevo"}</div>
+            <h2>{kind === "event" ? "Evento" : "Recordatorio"}</h2>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
+        </header>
+        <form onSubmit={submit}>
+          <div className="entry-type-picker">
+            <button type="button" className={kind === "event" ? "selected" : ""} onClick={() => setKind("event")}>
+              <CalendarDays size={16} /> Evento
+            </button>
+            <button type="button" className={kind === "reminder" ? "selected" : ""} onClick={() => setKind("reminder")}>
+              <Bell size={16} /> Recordatorio
+            </button>
+          </div>
+          <label>Título
+            <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={100} autoFocus placeholder="Ej. Cumpleaños de mamá" />
+          </label>
+          <div className="calendar-form-row">
+            <label>Fecha<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+            <label>Hora <small>Opcional</small><input type="time" value={time} onChange={(event) => setTime(event.target.value)} /></label>
+          </div>
+          <label>Repetición
+            <select value={recurrence} onChange={(event) => setRecurrence(event.target.value as CalendarEntry["recurrence"])}>
+              <option value="none">No repetir</option>
+              <option value="yearly">Cada año</option>
+            </select>
+          </label>
+          <label>Notas <small>Opcional</small>
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={300} rows={3} placeholder="Detalles útiles para la familia" />
+          </label>
+          <div className="calendar-modal-actions">
+            {onDelete && (
+              <button type="button" className="calendar-delete-button" onClick={onDelete}>
+                <Trash2 size={17} /> Eliminar
+              </button>
+            )}
+            <button className="primary-button" disabled={saving || !title.trim() || !date}>
+              {saving ? "Guardando…" : entry ? "Guardar cambios" : "Agregar"}
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }

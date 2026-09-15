@@ -29,6 +29,18 @@ export type HouseholdTask = {
   archivedAt: string | null;
 };
 
+export type CalendarEntry = {
+  id: string;
+  title: string;
+  kind: "event" | "reminder";
+  date: string;
+  time: string | null;
+  recurrence: "none" | "yearly";
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type LearnedProduct = {
   name: string;
   uses: number;
@@ -43,6 +55,7 @@ export type Family = {
   learnedProducts: LearnedProduct[];
   items: ShoppingItem[];
   tasks: HouseholdTask[];
+  calendarEntries: CalendarEntry[];
 };
 
 type LegacyDatabase = { families?: Record<string, Partial<Family>> };
@@ -115,8 +128,21 @@ export class HomeRepository {
         last_used_at TEXT NOT NULL,
         PRIMARY KEY(family_id, name_key)
       )`,
+      `CREATE TABLE IF NOT EXISTS calendar_entries (
+        id TEXT PRIMARY KEY,
+        family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        event_date TEXT NOT NULL,
+        event_time TEXT,
+        recurrence TEXT NOT NULL DEFAULT 'none',
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
       "CREATE INDEX IF NOT EXISTS idx_items_family ON shopping_items(family_id, completed, archived_at)",
-      "CREATE INDEX IF NOT EXISTS idx_tasks_family ON household_tasks(family_id, completed, archived_at)"
+      "CREATE INDEX IF NOT EXISTS idx_tasks_family ON household_tasks(family_id, completed, archived_at)",
+      "CREATE INDEX IF NOT EXISTS idx_calendar_family_date ON calendar_entries(family_id, event_date)"
     ], "write");
 
     await this.importLegacyData();
@@ -201,7 +227,7 @@ export class HomeRepository {
     const familyRow = familyResult.rows[0];
     if (!familyRow) return null;
 
-    const [locationsResult, itemsResult, tasksResult] = await Promise.all([
+    const [locationsResult, itemsResult, tasksResult, calendarResult] = await Promise.all([
       this.db.execute({ sql: "SELECT id, name FROM locations WHERE family_id = ? ORDER BY rowid", args: [id.toUpperCase()] }),
       this.db.execute({
         sql: `SELECT id, name, location_id, completed, created_at, updated_at, completed_at, archived_at
@@ -211,6 +237,11 @@ export class HomeRepository {
       this.db.execute({
         sql: `SELECT id, title, assignee, completed, created_at, updated_at, completed_at, archived_at
           FROM household_tasks WHERE family_id = ? ORDER BY created_at DESC`,
+        args: [id.toUpperCase()]
+      }),
+      this.db.execute({
+        sql: `SELECT id, title, kind, event_date, event_time, recurrence, notes, created_at, updated_at
+          FROM calendar_entries WHERE family_id = ? ORDER BY event_date, event_time, created_at`,
         args: [id.toUpperCase()]
       })
     ]);
@@ -240,6 +271,17 @@ export class HomeRepository {
         updatedAt: String(row.updated_at),
         completedAt: text(row.completed_at),
         archivedAt: text(row.archived_at)
+      })),
+      calendarEntries: calendarResult.rows.map((row) => ({
+        id: String(row.id),
+        title: String(row.title),
+        kind: String(row.kind) as CalendarEntry["kind"],
+        date: String(row.event_date),
+        time: text(row.event_time),
+        recurrence: String(row.recurrence) as CalendarEntry["recurrence"],
+        notes: text(row.notes),
+        createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at)
       }))
     };
   }
@@ -351,6 +393,61 @@ export class HomeRepository {
     const result = await this.db.execute({
       sql: "DELETE FROM household_tasks WHERE id = ? AND family_id = ?",
       args: [taskId, familyId.toUpperCase()]
+    });
+    return result.rowsAffected > 0;
+  }
+
+  async addCalendarEntry(
+    familyId: string,
+    entry: Pick<CalendarEntry, "title" | "kind" | "date" | "time" | "recurrence" | "notes">,
+    requestedId?: string
+  ) {
+    const family = await this.getFamily(familyId);
+    if (!family) return null;
+    const existing = requestedId
+      ? family.calendarEntries.find(({ id }) => id === requestedId)
+      : undefined;
+    if (existing) return existing;
+    const now = new Date().toISOString();
+    const calendarEntry: CalendarEntry = {
+      id: requestedId || nanoid(),
+      ...entry,
+      createdAt: now,
+      updatedAt: now
+    };
+    await this.db.execute({
+      sql: `INSERT OR IGNORE INTO calendar_entries
+        (id, family_id, title, kind, event_date, event_time, recurrence, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        calendarEntry.id, familyId.toUpperCase(), entry.title, entry.kind, entry.date,
+        value(entry.time), entry.recurrence, value(entry.notes), now, now
+      ]
+    });
+    return calendarEntry;
+  }
+
+  async updateCalendarEntry(
+    familyId: string,
+    entryId: string,
+    entry: Pick<CalendarEntry, "title" | "kind" | "date" | "time" | "recurrence" | "notes">
+  ) {
+    const now = new Date().toISOString();
+    const result = await this.db.execute({
+      sql: `UPDATE calendar_entries SET title = ?, kind = ?, event_date = ?, event_time = ?,
+        recurrence = ?, notes = ?, updated_at = ? WHERE id = ? AND family_id = ?`,
+      args: [
+        entry.title, entry.kind, entry.date, value(entry.time), entry.recurrence,
+        value(entry.notes), now, entryId, familyId.toUpperCase()
+      ]
+    });
+    return result.rowsAffected > 0;
+  }
+
+  async deleteCalendarEntry(familyId: string, entryId: string) {
+    const result = await this.db.execute({
+      sql: "DELETE FROM calendar_entries WHERE id = ? AND family_id = ?",
+      args: [entryId, familyId.toUpperCase()]
     });
     return result.rowsAffected > 0;
   }
