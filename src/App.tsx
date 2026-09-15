@@ -1435,7 +1435,7 @@ function CalendarEntryModal({
   }
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop calendar-modal-backdrop" onMouseDown={onClose}>
       <section className="calendar-modal animate-in" onMouseDown={(event) => event.stopPropagation()}>
         <header>
           <div>
@@ -1454,7 +1454,13 @@ function CalendarEntryModal({
             </button>
           </div>
           <label>Título
-            <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={100} autoFocus placeholder="Ej. Cumpleaños de mamá" />
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={100}
+              autoFocus={!window.matchMedia("(max-width: 720px)").matches}
+              placeholder="Ej. Cumpleaños de mamá"
+            />
           </label>
           <div className="calendar-form-row">
             <label>Fecha<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
