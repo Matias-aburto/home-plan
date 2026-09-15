@@ -5,7 +5,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import { baseCatalog } from "./catalog.js";
-import { HomeRepository, normalizeText, type Assignee, type Family } from "./database.js";
+import {
+  HomeRepository,
+  normalizeText,
+  type Assignee,
+  type CalendarEntry,
+  type Family
+} from "./database.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -20,6 +26,25 @@ await repository.initialize();
 
 function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function readCalendarEntry(body: Record<string, unknown>) {
+  const title = cleanText(body.title, 100);
+  const kind = body.kind === "reminder" ? "reminder" : body.kind === "event" ? "event" : null;
+  const date = cleanText(body.date, 10);
+  const parsedDate = new Date(`${date}T00:00:00.000Z`);
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date)
+    && !Number.isNaN(parsedDate.valueOf())
+    && parsedDate.toISOString().slice(0, 10) === date;
+  const rawTime = cleanText(body.time, 5);
+  const time = rawTime && /^([01]\d|2[0-3]):[0-5]\d$/.test(rawTime) ? rawTime : null;
+  const recurrence = body.recurrence === "yearly" ? "yearly" : "none";
+  const notes = cleanText(body.notes, 300) || null;
+  if (!title || !kind || !validDate || (rawTime && !time)) return null;
+  return { title, kind, date, time, recurrence, notes } satisfies Pick<
+    CalendarEntry,
+    "title" | "kind" | "date" | "time" | "recurrence" | "notes"
+  >;
 }
 
 async function broadcast(familyId: string) {
@@ -144,6 +169,40 @@ app.delete("/api/families/:id/tasks/:taskId", async (request, response) => {
     return response.status(404).json({ message: "No encontramos esa familia." });
   }
   await repository.deleteTask(request.params.id, request.params.taskId);
+  await broadcast(request.params.id);
+  return response.status(204).send();
+});
+
+app.post("/api/families/:id/calendar", async (request, response) => {
+  const entryData = readCalendarEntry(request.body);
+  const requestedId = cleanText(request.body.id, 50) || undefined;
+  if (!entryData) {
+    return response.status(400).json({ message: "Revisa el título, la fecha y la hora." });
+  }
+  const entry = await repository.addCalendarEntry(request.params.id, entryData, requestedId);
+  if (!entry) return response.status(404).json({ message: "No encontramos esa familia." });
+  await broadcast(request.params.id);
+  return response.status(201).json(entry);
+});
+
+app.patch("/api/families/:id/calendar/:entryId", async (request, response) => {
+  const entryData = readCalendarEntry(request.body);
+  if (!entryData) {
+    return response.status(400).json({ message: "Revisa el título, la fecha y la hora." });
+  }
+  const updated = await repository.updateCalendarEntry(
+    request.params.id,
+    request.params.entryId,
+    entryData
+  );
+  if (!updated) return response.status(404).json({ message: "No encontramos ese evento." });
+  const family = await broadcast(request.params.id);
+  return response.json(family?.calendarEntries.find(({ id }) => id === request.params.entryId));
+});
+
+app.delete("/api/families/:id/calendar/:entryId", async (request, response) => {
+  const deleted = await repository.deleteCalendarEntry(request.params.id, request.params.entryId);
+  if (!deleted) return response.status(404).json({ message: "No encontramos ese evento." });
   await broadcast(request.params.id);
   return response.status(204).send();
 });
