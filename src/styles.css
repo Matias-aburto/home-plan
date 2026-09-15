@@ -819,6 +819,19 @@ textarea:focus-visible {
   animation: restore-ring 460ms ease-out both;
 }
 
+.shopping-row.deleting {
+  pointer-events: none;
+  overflow: hidden;
+  animation: row-delete 360ms cubic-bezier(.4,0,.8,.2) both;
+}
+
+.shopping-row.deleting .delete-button {
+  opacity: 1;
+  color: #a84845;
+  background: #faefed;
+  animation: trash-leave 320ms ease both;
+}
+
 .completed-section { display: grid; gap: 8px; margin-top: 22px; }
 .completed-section > h3 { margin: 0 0 2px; color: #8b958f; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 
@@ -1432,6 +1445,18 @@ textarea:focus-visible {
 @keyframes restore-ring {
   from { opacity: .55; transform: scale(.65); }
   to { opacity: 0; transform: scale(1.8); }
+}
+
+@keyframes row-delete {
+  0% { opacity: 1; transform: translateX(0) scale(1); background: var(--surface); }
+  38% { opacity: 1; transform: translateX(-4px) scale(.995); background: #fff5f3; border-color: #efd5d0; }
+  100% { opacity: 0; transform: translateX(28px) scale(.96); background: #fff5f3; border-color: #efd5d0; }
+}
+
+@keyframes trash-leave {
+  0% { transform: scale(1) rotate(0); }
+  45% { transform: scale(1.16) rotate(-8deg); }
+  100% { transform: scale(.75) rotate(12deg); }
 }
 
 @keyframes breathe {

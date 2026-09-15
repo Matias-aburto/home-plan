@@ -227,6 +227,12 @@ export class HomeRepository {
     const familyRow = familyResult.rows[0];
     if (!familyRow) return null;
 
+    const now = new Date().toISOString();
+    await Promise.all([
+      this.archiveOlder("shopping_items", id, now),
+      this.archiveOlder("household_tasks", id, now)
+    ]);
+
     const [locationsResult, itemsResult, tasksResult, calendarResult] = await Promise.all([
       this.db.execute({ sql: "SELECT id, name FROM locations WHERE family_id = ? ORDER BY rowid", args: [id.toUpperCase()] }),
       this.db.execute({
@@ -479,18 +485,20 @@ export class HomeRepository {
   }
 
   private async archiveOlder(table: "shopping_items" | "household_tasks", familyId: string, now: string) {
+    const cutoff = new Date(new Date(now).getTime() - 24 * 60 * 60 * 1000).toISOString();
     await this.db.execute({
       sql: `UPDATE ${table}
         SET archived_at = CASE
           WHEN id IN (
             SELECT id FROM ${table}
             WHERE family_id = ? AND completed = 1
+              AND COALESCE(completed_at, updated_at) >= ?
             ORDER BY COALESCE(completed_at, updated_at) DESC LIMIT 5
           ) THEN NULL
           ELSE COALESCE(archived_at, ?)
         END
         WHERE family_id = ? AND completed = 1`,
-      args: [familyId.toUpperCase(), now, familyId.toUpperCase()]
+      args: [familyId.toUpperCase(), cutoff, now, familyId.toUpperCase()]
     });
   }
 }

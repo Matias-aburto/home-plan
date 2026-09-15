@@ -136,8 +136,9 @@ function archiveCompletedLocally<T extends {
   updatedAt: string;
   archivedAt: string | null;
 }>(entries: T[]) {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const completed = entries
-    .filter((entry) => entry.completed)
+    .filter((entry) => entry.completed && (entry.completedAt || entry.updatedAt) >= cutoff)
     .sort((a, b) => (b.completedAt || b.updatedAt).localeCompare(a.completedAt || a.updatedAt));
   const visibleIds = new Set(completed.slice(0, 5));
   const now = new Date().toISOString();
@@ -898,14 +899,15 @@ function ShoppingRow({
   item: ShoppingItem;
   locations: Location[];
   onToggle: (item: ShoppingItem) => Promise<void>;
-  onDelete: (item: ShoppingItem) => void;
+  onDelete: (item: ShoppingItem) => Promise<void>;
 }) {
   const [completing, setCompleting] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const location = locations.find(({ id }) => id === item.locationId);
 
   async function toggle() {
-    if (completing || restoring) return;
+    if (completing || restoring || deleting) return;
     if (item.completed) {
       setRestoring(true);
       await new Promise((resolve) => window.setTimeout(resolve, 460));
@@ -919,8 +921,15 @@ function ShoppingRow({
     setCompleting(false);
   }
 
+  async function remove() {
+    if (deleting) return;
+    setDeleting(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 360));
+    await onDelete(item);
+  }
+
   return (
-    <div className={`shopping-row ${item.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""}`}>
+    <div className={`shopping-row ${item.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""} ${deleting ? "deleting" : ""}`}>
       <button className="check-button" onClick={toggle} aria-label={item.completed ? "Marcar pendiente" : "Marcar comprado"}>
         {(item.completed || completing) && <Check size={16} strokeWidth={3} />}
       </button>
@@ -932,7 +941,7 @@ function ShoppingRow({
           </small>
         )}
       </button>
-      <button className="delete-button" onClick={() => onDelete(item)} aria-label={`Eliminar ${item.name}`}>
+      <button className="delete-button" onClick={remove} aria-label={`Eliminar ${item.name}`}>
         <Trash2 size={17} />
       </button>
     </div>
@@ -1128,13 +1137,14 @@ function TaskRow({
 }: {
   task: HouseholdTask;
   onToggle: (task: HouseholdTask) => Promise<void>;
-  onDelete: (task: HouseholdTask) => void;
+  onDelete: (task: HouseholdTask) => Promise<void>;
 }) {
   const [completing, setCompleting] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function toggle() {
-    if (completing || restoring) return;
+    if (completing || restoring || deleting) return;
     if (task.completed) {
       setRestoring(true);
       await new Promise((resolve) => window.setTimeout(resolve, 460));
@@ -1148,8 +1158,15 @@ function TaskRow({
     setCompleting(false);
   }
 
+  async function remove() {
+    if (deleting) return;
+    setDeleting(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 360));
+    await onDelete(task);
+  }
+
   return (
-    <div className={`shopping-row ${task.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""}`}>
+    <div className={`shopping-row ${task.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""} ${deleting ? "deleting" : ""}`}>
       <button className="check-button" onClick={toggle} aria-label={task.completed ? "Marcar pendiente" : "Marcar completada"}>
         {(task.completed || completing) && <Check size={16} strokeWidth={3} />}
       </button>
@@ -1157,7 +1174,7 @@ function TaskRow({
         <span>{task.title}</span>
         {task.assignee && <small><em><UserRound size={11} /> {task.assignee}</em></small>}
       </button>
-      <button className="delete-button" onClick={() => onDelete(task)} aria-label={`Eliminar ${task.title}`}>
+      <button className="delete-button" onClick={remove} aria-label={`Eliminar ${task.title}`}>
         <Trash2 size={17} />
       </button>
     </div>
