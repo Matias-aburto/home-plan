@@ -146,10 +146,11 @@ app.post("/api/families/:id/tasks", async (request, response) => {
   const assignee: Assignee | null = request.body.assignee === "Matías" || request.body.assignee === "Francisca"
     ? request.body.assignee
     : null;
+  const locationId = cleanText(request.body.locationId, 30) || null;
   const requestedId = cleanText(request.body.id, 50) || undefined;
   if (!title) return response.status(400).json({ message: "Escribe qué hay que hacer." });
 
-  const task = await repository.addTask(request.params.id, title, assignee, requestedId);
+  const task = await repository.addTask(request.params.id, title, assignee, locationId, requestedId);
   if (!task) return response.status(404).json({ message: "No encontramos esa familia." });
   await broadcast(request.params.id);
   return response.status(201).json(task);
@@ -162,7 +163,16 @@ app.patch("/api/families/:id/tasks/:taskId", async (request, response) => {
       ? request.body.assignee
       : null
     : undefined;
-  const updated = await repository.updateTask(request.params.id, request.params.taskId, completed, assignee);
+  const locationId = "locationId" in request.body
+    ? cleanText(request.body.locationId, 30) || null
+    : undefined;
+  const updated = await repository.updateTask(
+    request.params.id,
+    request.params.taskId,
+    completed,
+    assignee,
+    locationId
+  );
   if (!updated) return response.status(404).json({ message: "No encontramos esa tarea." });
   const family = await broadcast(request.params.id);
   return response.json(family?.tasks.find(({ id }) => id === request.params.taskId));

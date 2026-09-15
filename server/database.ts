@@ -22,6 +22,7 @@ export type HouseholdTask = {
   id: string;
   title: string;
   assignee: Assignee | null;
+  locationId: string | null;
   completed: boolean;
   createdAt: string;
   updatedAt: string;
@@ -114,6 +115,7 @@ export class HomeRepository {
         family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
         title TEXT NOT NULL,
         assignee TEXT,
+        location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
         completed INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -144,6 +146,13 @@ export class HomeRepository {
       "CREATE INDEX IF NOT EXISTS idx_tasks_family ON household_tasks(family_id, completed, archived_at)",
       "CREATE INDEX IF NOT EXISTS idx_calendar_family_date ON calendar_entries(family_id, event_date)"
     ], "write");
+
+    const taskColumns = await this.db.execute("PRAGMA table_info(household_tasks)");
+    if (!taskColumns.rows.some((column) => String(column.name) === "location_id")) {
+      await this.db.execute(
+        "ALTER TABLE household_tasks ADD COLUMN location_id TEXT REFERENCES locations(id) ON DELETE SET NULL"
+      );
+    }
 
     await this.importLegacyData();
     if (!(await this.getFamily("CASA"))) await this.createFamily("Familia de prueba", "CASA");
@@ -199,10 +208,10 @@ export class HomeRepository {
     const updatedAt = task.updatedAt || task.createdAt;
     await this.db.execute({
       sql: `INSERT OR IGNORE INTO household_tasks
-        (id, family_id, title, assignee, completed, created_at, updated_at, completed_at, archived_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, family_id, title, assignee, location_id, completed, created_at, updated_at, completed_at, archived_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
-        task.id, familyId, task.title, value(task.assignee), task.completed ? 1 : 0,
+        task.id, familyId, task.title, value(task.assignee), value(task.locationId), task.completed ? 1 : 0,
         task.createdAt, updatedAt, value(task.completedAt || (task.completed ? updatedAt : null)), value(task.archivedAt)
       ]
     });
@@ -241,7 +250,7 @@ export class HomeRepository {
         args: [id.toUpperCase()]
       }),
       this.db.execute({
-        sql: `SELECT id, title, assignee, completed, created_at, updated_at, completed_at, archived_at
+        sql: `SELECT id, title, assignee, location_id, completed, created_at, updated_at, completed_at, archived_at
           FROM household_tasks WHERE family_id = ? ORDER BY created_at DESC`,
         args: [id.toUpperCase()]
       }),
@@ -272,6 +281,7 @@ export class HomeRepository {
         id: String(row.id),
         title: String(row.title),
         assignee: text(row.assignee) as Assignee | null,
+        locationId: text(row.location_id),
         completed: Boolean(row.completed),
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
@@ -354,40 +364,57 @@ export class HomeRepository {
     return result.rowsAffected > 0;
   }
 
-  async addTask(familyId: string, title: string, assignee: Assignee | null, requestedId?: string) {
+  async addTask(
+    familyId: string,
+    title: string,
+    assignee: Assignee | null,
+    locationId: string | null,
+    requestedId?: string
+  ) {
     const family = await this.getFamily(familyId);
     if (!family) return null;
     const existing = requestedId ? family.tasks.find(({ id }) => id === requestedId) : undefined;
     if (existing) return existing;
+    const validLocation = family.locations.some(({ id }) => id === locationId) ? locationId : null;
     const now = new Date().toISOString();
     const task: HouseholdTask = {
-      id: requestedId || nanoid(), title, assignee, completed: false,
+      id: requestedId || nanoid(), title, assignee, locationId: validLocation, completed: false,
       createdAt: now, updatedAt: now, completedAt: null, archivedAt: null
     };
     await this.db.execute({
       sql: `INSERT OR IGNORE INTO household_tasks
-        (id, family_id, title, assignee, completed, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 0, ?, ?)`,
-      args: [task.id, familyId.toUpperCase(), title, value(assignee), now, now]
+        (id, family_id, title, assignee, location_id, completed, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+      args: [task.id, familyId.toUpperCase(), title, value(assignee), value(validLocation), now, now]
     });
     return task;
   }
 
-  async updateTask(familyId: string, taskId: string, completed?: boolean, assignee?: Assignee | null) {
+  async updateTask(
+    familyId: string,
+    taskId: string,
+    completed?: boolean,
+    assignee?: Assignee | null,
+    locationId?: string | null
+  ) {
     const current = await this.db.execute({
-      sql: "SELECT completed, assignee FROM household_tasks WHERE id = ? AND family_id = ?",
+      sql: "SELECT completed, assignee, location_id FROM household_tasks WHERE id = ? AND family_id = ?",
       args: [taskId, familyId.toUpperCase()]
     });
     if (!current.rows[0]) return false;
     const nextCompleted = completed ?? Boolean(current.rows[0].completed);
     const nextAssignee = assignee === undefined ? text(current.rows[0].assignee) : assignee;
+    const family = locationId === undefined ? null : await this.getFamily(familyId);
+    const nextLocation = locationId === undefined
+      ? text(current.rows[0].location_id)
+      : family?.locations.some(({ id }) => id === locationId) ? locationId : null;
     const now = new Date().toISOString();
     await this.db.execute({
-      sql: `UPDATE household_tasks SET completed = ?, assignee = ?, updated_at = ?,
+      sql: `UPDATE household_tasks SET completed = ?, assignee = ?, location_id = ?, updated_at = ?,
         completed_at = CASE WHEN ? = 1 THEN COALESCE(completed_at, ?) ELSE NULL END,
         archived_at = NULL WHERE id = ? AND family_id = ?`,
       args: [
-        nextCompleted ? 1 : 0, value(nextAssignee), now, nextCompleted ? 1 : 0, now,
+        nextCompleted ? 1 : 0, value(nextAssignee), value(nextLocation), now, nextCompleted ? 1 : 0, now,
         taskId, familyId.toUpperCase()
       ]
     });

@@ -61,6 +61,7 @@ type HouseholdTask = {
   id: string;
   title: string;
   assignee: Assignee | null;
+  locationId: string | null;
   completed: boolean;
   createdAt: string;
   updatedAt: string;
@@ -852,7 +853,13 @@ function FamilyHome({
             )}
           </div>
         </section>
-        {activeSection === "tasks" && <TasksSection family={family} onMutate={onMutate} />}
+        {activeSection === "tasks" && (
+          <TasksSection
+            family={family}
+            onMutate={onMutate}
+            onManageLocations={() => setManagingLocations(true)}
+          />
+        )}
         {activeSection === "calendar" && <CalendarSection family={family} onMutate={onMutate} />}
       </div>
       {managingLocations && (
@@ -956,16 +963,20 @@ function ShoppingRow({
 
 function TasksSection({
   family,
-  onMutate
+  onMutate,
+  onManageLocations
 }: {
   family: Family;
   onMutate: (family: Family, operation: OfflineMutation) => Promise<void>;
+  onManageLocations: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState<Assignee | null>(null);
+  const [locationId, setLocationId] = useState("");
   const [filter, setFilter] = useState<"all" | "none" | Assignee>("all");
   const [adding, setAdding] = useState(false);
-  const [choosingAssignee, setChoosingAssignee] = useState(false);
+  const [choosingOptions, setChoosingOptions] = useState(false);
+  const selectedLocation = family.locations.find(({ id }) => id === locationId);
   const visibleTasks = useMemo(
     () => family.tasks.filter((task) =>
       !task.archivedAt && (filter === "all" || (filter === "none" ? !task.assignee : task.assignee === filter))
@@ -986,6 +997,7 @@ function TasksSection({
         id: crypto.randomUUID(),
         title: formattedTitle,
         assignee,
+        locationId: locationId || null,
         completed: false,
         createdAt: now,
         updatedAt: now,
@@ -995,7 +1007,7 @@ function TasksSection({
       await onMutate({ ...family, tasks: [task, ...family.tasks] }, {
         url: `/api/families/${family.id}/tasks`,
         method: "POST",
-        body: { id: task.id, title: task.title, assignee }
+        body: { id: task.id, title: task.title, assignee, locationId: task.locationId }
       });
       setTitle("");
     } finally {
@@ -1025,11 +1037,6 @@ function TasksSection({
     });
   }
 
-  function chooseAssignee(nextAssignee: Assignee | null) {
-    setAssignee(nextAssignee);
-    setChoosingAssignee(false);
-  }
-
   return (
     <section className="content">
       <div className="content-heading">
@@ -1041,9 +1048,9 @@ function TasksSection({
 
       <form className="add-item-form task-form" onSubmit={addTask}>
         <div className="add-item-fields">
-          <button className="mobile-location-button" type="button" onClick={() => setChoosingAssignee(true)}>
-            <UserRound size={15} />
-            <span>{assignee || "Sin asignar"}</span>
+          <button className="mobile-location-button" type="button" onClick={() => setChoosingOptions(true)}>
+            <Settings2 size={15} />
+            <span>{selectedLocation?.name || assignee || "Detalles"}</span>
           </button>
           <div className="item-input-wrap">
             <Plus size={20} />
@@ -1059,21 +1066,42 @@ function TasksSection({
             <Plus size={19} /><span>Agregar</span>
           </button>
         </div>
-        <div className="location-picker">
-          <span>Asignar a</span>
-          <button type="button" className={!assignee ? "selected" : ""} onClick={() => setAssignee(null)}>
-            Sin asignar
-          </button>
-          {(["Matías", "Francisca"] as Assignee[]).map((member) => (
-            <button
-              type="button"
-              key={member}
-              className={assignee === member ? "selected" : ""}
-              onClick={() => setAssignee(member)}
-            >
-              <UserRound size={13} /> {member}
+        <div className="task-options-picker">
+          <div className="location-picker">
+            <span>Asignar a</span>
+            <button type="button" className={!assignee ? "selected" : ""} onClick={() => setAssignee(null)}>
+              Sin asignar
             </button>
-          ))}
+            {(["Matías", "Francisca"] as Assignee[]).map((member) => (
+              <button
+                type="button"
+                key={member}
+                className={assignee === member ? "selected" : ""}
+                onClick={() => setAssignee(member)}
+              >
+                <UserRound size={13} /> {member}
+              </button>
+            ))}
+          </div>
+          <div className="location-picker">
+            <span>En</span>
+            <button type="button" className={!locationId ? "selected" : ""} onClick={() => setLocationId("")}>
+              General
+            </button>
+            {family.locations.map((location) => (
+              <button
+                type="button"
+                key={location.id}
+                className={locationId === location.id ? "selected" : ""}
+                onClick={() => setLocationId(location.id)}
+              >
+                <MapPin size={13} /> {location.name}
+              </button>
+            ))}
+            <button type="button" className="manage-task-locations" onClick={onManageLocations} aria-label="Administrar ubicaciones">
+              <Settings2 size={14} />
+            </button>
+          </div>
         </div>
       </form>
 
@@ -1099,13 +1127,13 @@ function TasksSection({
         ) : (
           <>
             {pendingTasks.map((task) => (
-              <TaskRow key={task.id} task={task} onToggle={toggleTask} onDelete={deleteTask} />
+              <TaskRow key={task.id} task={task} locations={family.locations} onToggle={toggleTask} onDelete={deleteTask} />
             ))}
             {completedTasks.length > 0 && (
               <div className="completed-section">
                 <h3>Completadas · {completedTasks.length}</h3>
                 {completedTasks.map((task) => (
-                  <TaskRow key={task.id} task={task} onToggle={toggleTask} onDelete={deleteTask} />
+                  <TaskRow key={task.id} task={task} locations={family.locations} onToggle={toggleTask} onDelete={deleteTask} />
                 ))}
               </div>
             )}
@@ -1113,23 +1141,45 @@ function TasksSection({
         )}
       </div>
 
-      {choosingAssignee && (
-        <div className="location-sheet-backdrop" onMouseDown={() => setChoosingAssignee(false)}>
+      {choosingOptions && (
+        <div className="location-sheet-backdrop" onMouseDown={() => setChoosingOptions(false)}>
           <section className="mobile-location-sheet animate-in" onMouseDown={(event) => event.stopPropagation()}>
             <div className="sheet-handle" />
-            <h2>Asignar a</h2>
-            <button className={!assignee ? "selected" : ""} onClick={() => chooseAssignee(null)}>
+            <h2>Detalles de la tarea</h2>
+            <h3>Ubicación</h3>
+            <button className={!locationId ? "selected" : ""} onClick={() => setLocationId("")}>
+              <House size={19} />
+              <span><strong>General</strong><small>Sin una ubicación específica</small></span>
+              {!locationId && <Check size={18} />}
+            </button>
+            {family.locations.map((location) => (
+              <button key={location.id} className={locationId === location.id ? "selected" : ""} onClick={() => setLocationId(location.id)}>
+                <MapPin size={19} />
+                <span><strong>{location.name}</strong></span>
+                {locationId === location.id && <Check size={18} />}
+              </button>
+            ))}
+            <button className="sheet-manage-button" onClick={() => {
+              setChoosingOptions(false);
+              onManageLocations();
+            }}>
+              <Settings2 size={19} />
+              <span><strong>Administrar ubicaciones</strong></span>
+            </button>
+            <h3>Asignar a</h3>
+            <button className={!assignee ? "selected" : ""} onClick={() => setAssignee(null)}>
               <Users size={19} />
               <span><strong>Sin asignar</strong><small>Cualquiera puede hacerla</small></span>
               {!assignee && <Check size={18} />}
             </button>
             {(["Matías", "Francisca"] as Assignee[]).map((member) => (
-              <button key={member} className={assignee === member ? "selected" : ""} onClick={() => chooseAssignee(member)}>
+              <button key={member} className={assignee === member ? "selected" : ""} onClick={() => setAssignee(member)}>
                 <UserRound size={19} />
                 <span><strong>{member}</strong></span>
                 {assignee === member && <Check size={18} />}
               </button>
             ))}
+            <button className="sheet-done-button" onClick={() => setChoosingOptions(false)}>Listo</button>
           </section>
         </div>
       )}
@@ -1139,16 +1189,19 @@ function TasksSection({
 
 function TaskRow({
   task,
+  locations,
   onToggle,
   onDelete
 }: {
   task: HouseholdTask;
+  locations: Location[];
   onToggle: (task: HouseholdTask) => Promise<void>;
   onDelete: (task: HouseholdTask) => Promise<void>;
 }) {
   const [completing, setCompleting] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const location = locations.find(({ id }) => id === task.locationId);
 
   async function toggle() {
     if (completing || restoring || deleting) return;
@@ -1179,7 +1232,12 @@ function TaskRow({
       </button>
       <button className="item-copy item-copy-button" onClick={toggle}>
         <span>{task.title}</span>
-        {task.assignee && <small><em><UserRound size={11} /> {task.assignee}</em></small>}
+        {(task.assignee || location) && (
+          <small>
+            {task.assignee && <em><UserRound size={11} /> {task.assignee}</em>}
+            {location && <em><MapPin size={11} /> {location.name}</em>}
+          </small>
+        )}
       </button>
       <button className="delete-button" onClick={remove} aria-label={`Eliminar ${task.title}`}>
         <Trash2 size={17} />

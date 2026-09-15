@@ -628,6 +628,9 @@ textarea:focus-visible {
   background: var(--green-soft);
 }
 
+.task-options-picker .location-picker + .location-picker { margin-top: 0; }
+.manage-task-locations { width: 30px; padding: 0 !important; justify-content: center; }
+
 .list-toolbar {
   margin: -7px 0 14px;
   display: flex;
@@ -721,7 +724,7 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
-.item-copy small { color: var(--muted); font-size: 12px; }
+.item-copy small { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .item-copy small em { display: inline-flex; align-items: center; gap: 2px; color: var(--green); font-style: normal; }
 
 .delete-button {
@@ -1634,7 +1637,10 @@ textarea:focus-visible {
 
   .mobile-location-sheet {
     width: 100%;
+    max-height: min(82dvh, 680px);
     padding: 9px 14px calc(16px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: #fff;
     border-radius: 22px;
     box-shadow: 0 18px 60px rgba(20, 34, 27, .25);
@@ -1654,6 +1660,14 @@ textarea:focus-visible {
     font-size: 21px;
   }
 
+  .mobile-location-sheet h3 {
+    margin: 16px 12px 5px;
+    color: #909a94;
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
   .mobile-location-sheet > button {
     width: 100%;
     min-height: 56px;
@@ -1671,6 +1685,23 @@ textarea:focus-visible {
   .mobile-location-sheet > button.selected {
     color: var(--green);
     background: var(--green-soft);
+  }
+
+  .mobile-location-sheet > button.sheet-manage-button {
+    min-height: 46px;
+    margin-top: 3px;
+    color: var(--green);
+    border: 1px dashed #cbd9d1;
+  }
+
+  .mobile-location-sheet > button.sheet-done-button {
+    min-height: 48px;
+    margin-top: 14px;
+    justify-content: center;
+    color: #fff;
+    background: var(--green);
+    font-weight: 700;
+    text-align: center;
   }
 
   .mobile-location-sheet > button > span {
