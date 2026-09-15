@@ -7,6 +7,7 @@
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:web\"",
     "dev:web": "vite",
     "dev:server": "tsx watch server/index.ts",
+    "db:init": "tsx server/init-database.ts",
     "build": "tsc -b && vite build",
     "start": "tsx server/index.ts",
     "preview": "vite preview"
