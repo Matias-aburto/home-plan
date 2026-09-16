@@ -1771,9 +1771,10 @@ textarea:focus-visible {
     top: 0;
     right: 0;
     bottom: 0;
-    width: 132px;
+    width: 146px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 80px 66px;
+    background: #548270;
   }
 
   .swipe-actions button {
@@ -1789,7 +1790,7 @@ textarea:focus-visible {
     font-weight: 700;
   }
 
-  .swipe-edit { background: #548270; }
+  .swipe-edit { padding-left: 14px !important; background: #548270; }
   .swipe-delete { background: #bb5d55; }
 
   .swipe-card-content {
