@@ -1,4 +1,13 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import {
   ArrowLeft,
   Bell,
@@ -537,6 +546,7 @@ function FamilyHome({
   const [shareLabel, setShareLabel] = useState("Compartir");
   const [managingLocations, setManagingLocations] = useState(false);
   const [choosingLocation, setChoosingLocation] = useState(false);
+  const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const visibleItems = useMemo(
     () => family.items.filter((item) =>
       !item.archivedAt && (filter === "all" || (filter === "none" ? !item.locationId : item.locationId === filter))
@@ -632,6 +642,24 @@ function FamilyHome({
       url: `/api/families/${family.id}/items/${item.id}`,
       method: "DELETE"
     });
+  }
+
+  async function editItem(item: ShoppingItem, title: string, nextLocationId: string | null) {
+    const name = capitalizeFirst(title);
+    const updatedAt = new Date().toISOString();
+    await onMutate({
+      ...family,
+      items: family.items.map((candidate) =>
+        candidate.id === item.id
+          ? { ...candidate, name, locationId: nextLocationId, updatedAt }
+          : candidate
+      )
+    }, {
+      url: `/api/families/${family.id}/items/${item.id}`,
+      method: "PATCH",
+      body: { name, locationId: nextLocationId }
+    });
+    setEditingItem(null);
   }
 
   function selectSuggestion(suggestion: Suggestion) {
@@ -839,13 +867,13 @@ function FamilyHome({
             ) : (
               <>
                 {pendingItems.map((item) => (
-                  <ShoppingRow key={item.id} item={item} locations={family.locations} onToggle={toggleItem} onDelete={deleteItem} />
+                  <ShoppingRow key={item.id} item={item} locations={family.locations} onToggle={toggleItem} onEdit={setEditingItem} onDelete={deleteItem} />
                 ))}
                 {completedItems.length > 0 && (
                   <div className="completed-section">
                     <h3>Comprados · {completedItems.length}</h3>
                     {completedItems.map((item) => (
-                      <ShoppingRow key={item.id} item={item} locations={family.locations} onToggle={toggleItem} onDelete={deleteItem} />
+                      <ShoppingRow key={item.id} item={item} locations={family.locations} onToggle={toggleItem} onEdit={setEditingItem} onDelete={deleteItem} />
                     ))}
                   </div>
                 )}
@@ -899,7 +927,95 @@ function FamilyHome({
           </section>
         </div>
       )}
+      {editingItem && (
+        <EntryEditModal
+          title="Editar producto"
+          value={editingItem.name}
+          locationId={editingItem.locationId}
+          locations={family.locations}
+          onSave={(value, nextLocationId) => editItem(editingItem, value, nextLocationId)}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </main>
+  );
+}
+
+function SwipeCard({
+  label,
+  children,
+  onEdit,
+  onDelete
+}: {
+  label: string;
+  children: ReactNode;
+  onEdit: () => void;
+  onDelete: () => Promise<void>;
+}) {
+  const [offset, setOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const start = useRef<{ x: number; y: number; offset: number } | null>(null);
+  const actionWidth = 132;
+
+  function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "touch") return;
+    start.current = { x: event.clientX, y: event.clientY, offset };
+    setDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function pointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!start.current || event.pointerType !== "touch") return;
+    const deltaX = event.clientX - start.current.x;
+    const deltaY = event.clientY - start.current.y;
+    if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 8) return;
+    setOffset(Math.max(-actionWidth, Math.min(0, start.current.offset + deltaX)));
+  }
+
+  function pointerEnd(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!start.current) return;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    const finalOffset = Math.max(
+      -actionWidth,
+      Math.min(0, start.current.offset + event.clientX - start.current.x)
+    );
+    setOffset(finalOffset < -44 ? -actionWidth : 0);
+    setDragging(false);
+    start.current = null;
+  }
+
+  function pointerCancel(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!start.current) return;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    setOffset(start.current.offset);
+    setDragging(false);
+    start.current = null;
+  }
+
+  return (
+    <div className={`swipe-card ${offset < 0 ? "open" : ""}`}>
+      <div className="swipe-actions" aria-hidden={offset === 0}>
+        <button className="swipe-edit" onClick={() => {
+          setOffset(0);
+          onEdit();
+        }} aria-label={`Editar ${label}`} tabIndex={offset < 0 ? 0 : -1}>
+          <Pencil size={18} /><span>Editar</span>
+        </button>
+        <button className="swipe-delete" onClick={onDelete} aria-label={`Eliminar ${label}`} tabIndex={offset < 0 ? 0 : -1}>
+          <Trash2 size={18} /><span>Eliminar</span>
+        </button>
+      </div>
+      <div
+        className={`swipe-card-content ${dragging ? "dragging" : ""}`}
+        style={{ transform: `translateX(${offset}px)` }}
+        onPointerDown={pointerDown}
+        onPointerMove={pointerMove}
+        onPointerUp={pointerEnd}
+        onPointerCancel={pointerCancel}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -907,11 +1023,13 @@ function ShoppingRow({
   item,
   locations,
   onToggle,
+  onEdit,
   onDelete
 }: {
   item: ShoppingItem;
   locations: Location[];
   onToggle: (item: ShoppingItem) => Promise<void>;
+  onEdit: (item: ShoppingItem) => void;
   onDelete: (item: ShoppingItem) => Promise<void>;
 }) {
   const [completing, setCompleting] = useState(false);
@@ -942,22 +1060,27 @@ function ShoppingRow({
   }
 
   return (
-    <div className={`shopping-row ${item.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""} ${deleting ? "deleting" : ""}`}>
-      <button className="check-button" onClick={toggle} aria-label={item.completed ? "Marcar pendiente" : "Marcar comprado"}>
-        {(item.completed || completing) && <Check size={16} strokeWidth={3} />}
-      </button>
-      <button className="item-copy item-copy-button" onClick={toggle}>
-        <span>{item.name}</span>
-        {location && (
-          <small>
-            <em><MapPin size={11} /> {location.name}</em>
-          </small>
-        )}
-      </button>
-      <button className="delete-button" onClick={remove} aria-label={`Eliminar ${item.name}`}>
-        <Trash2 size={17} />
-      </button>
-    </div>
+    <SwipeCard label={item.name} onEdit={() => onEdit(item)} onDelete={remove}>
+      <div className={`shopping-row ${item.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""} ${deleting ? "deleting" : ""}`}>
+        <button className="check-button" onClick={toggle} aria-label={item.completed ? "Marcar pendiente" : "Marcar comprado"}>
+          {(item.completed || completing) && <Check size={16} strokeWidth={3} />}
+        </button>
+        <button className="item-copy item-copy-button" onClick={toggle}>
+          <span>{item.name}</span>
+          {location && (
+            <small>
+              <em><MapPin size={11} /> {location.name}</em>
+            </small>
+          )}
+        </button>
+        <button className="edit-button direct-row-action" onClick={() => onEdit(item)} aria-label={`Editar ${item.name}`}>
+          <Pencil size={16} />
+        </button>
+        <button className="delete-button direct-row-action" onClick={remove} aria-label={`Eliminar ${item.name}`}>
+          <Trash2 size={17} />
+        </button>
+      </div>
+    </SwipeCard>
   );
 }
 
@@ -976,6 +1099,7 @@ function TasksSection({
   const [filter, setFilter] = useState<"all" | "none" | Assignee>("all");
   const [adding, setAdding] = useState(false);
   const [choosingOptions, setChoosingOptions] = useState(false);
+  const [editingTask, setEditingTask] = useState<HouseholdTask | null>(null);
   const selectedLocation = family.locations.find(({ id }) => id === locationId);
   const visibleTasks = useMemo(
     () => family.tasks.filter((task) =>
@@ -1035,6 +1159,35 @@ function TasksSection({
       url: `/api/families/${family.id}/tasks/${task.id}`,
       method: "DELETE"
     });
+  }
+
+  async function editTask(
+    task: HouseholdTask,
+    nextTitle: string,
+    nextLocationId: string | null,
+    nextAssignee: Assignee | null
+  ) {
+    const formattedTitle = capitalizeFirst(nextTitle);
+    const updatedAt = new Date().toISOString();
+    await onMutate({
+      ...family,
+      tasks: family.tasks.map((candidate) =>
+        candidate.id === task.id
+          ? {
+              ...candidate,
+              title: formattedTitle,
+              locationId: nextLocationId,
+              assignee: nextAssignee,
+              updatedAt
+            }
+          : candidate
+      )
+    }, {
+      url: `/api/families/${family.id}/tasks/${task.id}`,
+      method: "PATCH",
+      body: { title: formattedTitle, locationId: nextLocationId, assignee: nextAssignee }
+    });
+    setEditingTask(null);
   }
 
   return (
@@ -1127,13 +1280,13 @@ function TasksSection({
         ) : (
           <>
             {pendingTasks.map((task) => (
-              <TaskRow key={task.id} task={task} locations={family.locations} onToggle={toggleTask} onDelete={deleteTask} />
+              <TaskRow key={task.id} task={task} locations={family.locations} onToggle={toggleTask} onEdit={setEditingTask} onDelete={deleteTask} />
             ))}
             {completedTasks.length > 0 && (
               <div className="completed-section">
                 <h3>Completadas · {completedTasks.length}</h3>
                 {completedTasks.map((task) => (
-                  <TaskRow key={task.id} task={task} locations={family.locations} onToggle={toggleTask} onDelete={deleteTask} />
+                  <TaskRow key={task.id} task={task} locations={family.locations} onToggle={toggleTask} onEdit={setEditingTask} onDelete={deleteTask} />
                 ))}
               </div>
             )}
@@ -1183,6 +1336,20 @@ function TasksSection({
           </section>
         </div>
       )}
+      {editingTask && (
+        <EntryEditModal
+          title="Editar tarea"
+          value={editingTask.title}
+          locationId={editingTask.locationId}
+          assignee={editingTask.assignee}
+          locations={family.locations}
+          showAssignee
+          onSave={(value, nextLocationId, nextAssignee) =>
+            editTask(editingTask, value, nextLocationId, nextAssignee)
+          }
+          onClose={() => setEditingTask(null)}
+        />
+      )}
     </section>
   );
 }
@@ -1191,11 +1358,13 @@ function TaskRow({
   task,
   locations,
   onToggle,
+  onEdit,
   onDelete
 }: {
   task: HouseholdTask;
   locations: Location[];
   onToggle: (task: HouseholdTask) => Promise<void>;
+  onEdit: (task: HouseholdTask) => void;
   onDelete: (task: HouseholdTask) => Promise<void>;
 }) {
   const [completing, setCompleting] = useState(false);
@@ -1226,22 +1395,125 @@ function TaskRow({
   }
 
   return (
-    <div className={`shopping-row ${task.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""} ${deleting ? "deleting" : ""}`}>
-      <button className="check-button" onClick={toggle} aria-label={task.completed ? "Marcar pendiente" : "Marcar completada"}>
-        {(task.completed || completing) && <Check size={16} strokeWidth={3} />}
-      </button>
-      <button className="item-copy item-copy-button" onClick={toggle}>
-        <span>{task.title}</span>
-        {(task.assignee || location) && (
-          <small>
-            {task.assignee && <em><UserRound size={11} /> {task.assignee}</em>}
-            {location && <em><MapPin size={11} /> {location.name}</em>}
-          </small>
-        )}
-      </button>
-      <button className="delete-button" onClick={remove} aria-label={`Eliminar ${task.title}`}>
-        <Trash2 size={17} />
-      </button>
+    <SwipeCard label={task.title} onEdit={() => onEdit(task)} onDelete={remove}>
+      <div className={`shopping-row ${task.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""} ${deleting ? "deleting" : ""}`}>
+        <button className="check-button" onClick={toggle} aria-label={task.completed ? "Marcar pendiente" : "Marcar completada"}>
+          {(task.completed || completing) && <Check size={16} strokeWidth={3} />}
+        </button>
+        <button className="item-copy item-copy-button" onClick={toggle}>
+          <span>{task.title}</span>
+          {(task.assignee || location) && (
+            <small>
+              {task.assignee && <em><UserRound size={11} /> {task.assignee}</em>}
+              {location && <em><MapPin size={11} /> {location.name}</em>}
+            </small>
+          )}
+        </button>
+        <button className="edit-button direct-row-action" onClick={() => onEdit(task)} aria-label={`Editar ${task.title}`}>
+          <Pencil size={16} />
+        </button>
+        <button className="delete-button direct-row-action" onClick={remove} aria-label={`Eliminar ${task.title}`}>
+          <Trash2 size={17} />
+        </button>
+      </div>
+    </SwipeCard>
+  );
+}
+
+function EntryEditModal({
+  title,
+  value,
+  locationId,
+  assignee = null,
+  locations,
+  showAssignee = false,
+  onSave,
+  onClose
+}: {
+  title: string;
+  value: string;
+  locationId: string | null;
+  assignee?: Assignee | null;
+  locations: Location[];
+  showAssignee?: boolean;
+  onSave: (value: string, locationId: string | null, assignee: Assignee | null) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [nextValue, setNextValue] = useState(value);
+  const [nextLocationId, setNextLocationId] = useState(locationId || "");
+  const [nextAssignee, setNextAssignee] = useState<Assignee | null>(assignee);
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!nextValue.trim()) return;
+    setSaving(true);
+    try {
+      await onSave(nextValue, nextLocationId || null, nextAssignee);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop entry-edit-backdrop" onMouseDown={onClose}>
+      <section className="entry-edit-modal animate-in" onMouseDown={(event) => event.stopPropagation()}>
+        <header>
+          <h2>{title}</h2>
+          <button onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
+        </header>
+        <form onSubmit={submit}>
+          <label>Nombre
+            <input
+              value={nextValue}
+              onChange={(event) => setNextValue(event.target.value)}
+              maxLength={100}
+              autoFocus={!window.matchMedia("(max-width: 720px)").matches}
+            />
+          </label>
+          <fieldset>
+            <legend>Ubicación</legend>
+            <div className="edit-option-chips">
+              <button type="button" className={!nextLocationId ? "selected" : ""} onClick={() => setNextLocationId("")}>
+                <House size={14} /> General
+              </button>
+              {locations.map((location) => (
+                <button
+                  type="button"
+                  key={location.id}
+                  className={nextLocationId === location.id ? "selected" : ""}
+                  onClick={() => setNextLocationId(location.id)}
+                >
+                  <MapPin size={14} /> {location.name}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          {showAssignee && (
+            <fieldset>
+              <legend>Asignar a</legend>
+              <div className="edit-option-chips">
+                <button type="button" className={!nextAssignee ? "selected" : ""} onClick={() => setNextAssignee(null)}>
+                  Sin asignar
+                </button>
+                {(["Matías", "Francisca"] as Assignee[]).map((member) => (
+                  <button
+                    type="button"
+                    key={member}
+                    className={nextAssignee === member ? "selected" : ""}
+                    onClick={() => setNextAssignee(member)}
+                  >
+                    <UserRound size={14} /> {member}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <button className="primary-button" disabled={saving || !nextValue.trim()}>
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </form>
+      </section>
     </div>
   );
 }

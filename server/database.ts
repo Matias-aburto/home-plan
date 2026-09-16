@@ -356,6 +356,18 @@ export class HomeRepository {
     return true;
   }
 
+  async updateItemDetails(familyId: string, itemId: string, name: string, locationId: string | null) {
+    const family = await this.getFamily(familyId);
+    if (!family) return false;
+    const validLocation = family.locations.some(({ id }) => id === locationId) ? locationId : null;
+    const result = await this.db.execute({
+      sql: `UPDATE shopping_items SET name = ?, location_id = ?, updated_at = ?
+        WHERE id = ? AND family_id = ?`,
+      args: [name, value(validLocation), new Date().toISOString(), itemId, familyId.toUpperCase()]
+    });
+    return result.rowsAffected > 0;
+  }
+
   async deleteItem(familyId: string, itemId: string) {
     const result = await this.db.execute({
       sql: "DELETE FROM shopping_items WHERE id = ? AND family_id = ?",
@@ -395,14 +407,16 @@ export class HomeRepository {
     taskId: string,
     completed?: boolean,
     assignee?: Assignee | null,
-    locationId?: string | null
+    locationId?: string | null,
+    title?: string
   ) {
     const current = await this.db.execute({
-      sql: "SELECT completed, assignee, location_id FROM household_tasks WHERE id = ? AND family_id = ?",
+      sql: "SELECT title, completed, assignee, location_id FROM household_tasks WHERE id = ? AND family_id = ?",
       args: [taskId, familyId.toUpperCase()]
     });
     if (!current.rows[0]) return false;
     const nextCompleted = completed ?? Boolean(current.rows[0].completed);
+    const nextTitle = title === undefined ? String(current.rows[0].title) : title;
     const nextAssignee = assignee === undefined ? text(current.rows[0].assignee) : assignee;
     const family = locationId === undefined ? null : await this.getFamily(familyId);
     const nextLocation = locationId === undefined
@@ -410,11 +424,12 @@ export class HomeRepository {
       : family?.locations.some(({ id }) => id === locationId) ? locationId : null;
     const now = new Date().toISOString();
     await this.db.execute({
-      sql: `UPDATE household_tasks SET completed = ?, assignee = ?, location_id = ?, updated_at = ?,
+      sql: `UPDATE household_tasks SET title = ?, completed = ?, assignee = ?, location_id = ?, updated_at = ?,
         completed_at = CASE WHEN ? = 1 THEN COALESCE(completed_at, ?) ELSE NULL END,
         archived_at = NULL WHERE id = ? AND family_id = ?`,
       args: [
-        nextCompleted ? 1 : 0, value(nextAssignee), value(nextLocation), now, nextCompleted ? 1 : 0, now,
+        nextTitle, nextCompleted ? 1 : 0, value(nextAssignee), value(nextLocation), now,
+        nextCompleted ? 1 : 0, now,
         taskId, familyId.toUpperCase()
       ]
     });
