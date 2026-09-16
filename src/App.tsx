@@ -993,7 +993,7 @@ function SwipeCard({
   }
 
   return (
-    <div className={`swipe-card ${offset < 0 ? "open" : ""}`}>
+    <div className={`swipe-card ${offset < 0 ? "open" : ""} ${dragging ? "dragging" : ""}`}>
       <div className="swipe-actions" aria-hidden={offset === 0}>
         <button className="swipe-edit" onClick={() => {
           setOffset(0);

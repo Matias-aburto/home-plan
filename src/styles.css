@@ -1761,9 +1761,10 @@ textarea:focus-visible {
   .location-picker { display: none; }
 
   .swipe-card {
-    isolation: isolate;
     overflow: hidden;
     border-radius: 14px;
+    background: transparent;
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
   }
 
   .swipe-card .shopping-row {
@@ -1773,17 +1774,22 @@ textarea:focus-visible {
   .swipe-actions {
     position: absolute;
     z-index: 0;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 132px;
     display: grid;
-    grid-template-columns: 1fr 66px 66px;
+    grid-template-columns: 1fr 1fr;
     overflow: hidden;
-    border-radius: 14px;
-    background: transparent;
+    opacity: 0;
+    pointer-events: none;
+    background: #548270;
   }
 
-  .swipe-actions::before {
-    grid-column: 1;
-    content: "";
+  .swipe-card.open .swipe-actions,
+  .swipe-card.dragging .swipe-actions {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .swipe-actions button {
@@ -1799,13 +1805,12 @@ textarea:focus-visible {
     font-weight: 700;
   }
 
-  .swipe-edit { padding-left: 14px !important; background: #548270; }
+  .swipe-edit { background: #548270; }
   .swipe-delete { background: #bb5d55; }
 
   .swipe-card-content {
     touch-action: pan-y;
     transition: transform 220ms cubic-bezier(.2,.8,.2,1);
-    will-change: transform;
   }
 
   .swipe-card-content.dragging { transition: none; }
