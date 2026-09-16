@@ -1761,20 +1761,29 @@ textarea:focus-visible {
   .location-picker { display: none; }
 
   .swipe-card {
+    isolation: isolate;
     overflow: hidden;
+    border-radius: 14px;
+  }
+
+  .swipe-card .shopping-row {
     border-radius: 14px;
   }
 
   .swipe-actions {
     position: absolute;
     z-index: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 146px;
+    inset: 0;
     display: grid;
-    grid-template-columns: 80px 66px;
-    background: #548270;
+    grid-template-columns: 1fr 66px 66px;
+    overflow: hidden;
+    border-radius: 14px;
+    background: transparent;
+  }
+
+  .swipe-actions::before {
+    grid-column: 1;
+    content: "";
   }
 
   .swipe-actions button {
