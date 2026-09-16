@@ -1764,17 +1764,10 @@ textarea:focus-visible {
     overflow: hidden;
     border-radius: 14px;
     background: transparent;
-    -webkit-mask-image: -webkit-radial-gradient(white, black);
   }
 
   .swipe-card .shopping-row {
     border-radius: 14px;
-  }
-
-  .swipe-card.open .shopping-row,
-  .swipe-card.dragging .shopping-row {
-    border-right: 0;
-    border-radius: 14px 0 0 14px;
   }
 
   .swipe-actions {
@@ -1783,10 +1776,11 @@ textarea:focus-visible {
     top: 0;
     right: 0;
     bottom: 0;
-    width: 132px;
+    width: 140px;
+    padding-left: 8px;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    overflow: hidden;
+    gap: 8px;
     opacity: 0;
     pointer-events: none;
   }
@@ -1806,6 +1800,7 @@ textarea:focus-visible {
     gap: 4px;
     color: #fff;
     border: 0;
+    border-radius: 14px;
     font-size: 10px;
     font-weight: 700;
   }

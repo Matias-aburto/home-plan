@@ -955,7 +955,7 @@ function SwipeCard({
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const start = useRef<{ x: number; y: number; offset: number } | null>(null);
-  const actionWidth = 132;
+  const actionWidth = 140;
 
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.pointerType !== "touch") return;
