@@ -9,6 +9,7 @@ export type ShoppingItem = {
   name: string;
   locationId: string | null;
   completed: boolean;
+  position: number;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -24,6 +25,7 @@ export type HouseholdTask = {
   assignee: Assignee | null;
   locationId: string | null;
   completed: boolean;
+  position: number;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -105,6 +107,7 @@ export class HomeRepository {
         name TEXT NOT NULL,
         location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
         completed INTEGER NOT NULL DEFAULT 0,
+        position INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         completed_at TEXT,
@@ -117,6 +120,7 @@ export class HomeRepository {
         assignee TEXT,
         location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
         completed INTEGER NOT NULL DEFAULT 0,
+        position INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         completed_at TEXT,
@@ -153,9 +157,47 @@ export class HomeRepository {
         "ALTER TABLE household_tasks ADD COLUMN location_id TEXT REFERENCES locations(id) ON DELETE SET NULL"
       );
     }
+    await this.ensurePositionColumn("shopping_items");
+    await this.ensurePositionColumn("household_tasks");
 
     await this.importLegacyData();
+    await this.backfillPositions("shopping_items");
+    await this.backfillPositions("household_tasks");
     if (!(await this.getFamily("CASA"))) await this.createFamily("Familia de prueba", "CASA");
+  }
+
+  private async ensurePositionColumn(table: "shopping_items" | "household_tasks") {
+    const columns = await this.db.execute(`PRAGMA table_info(${table})`);
+    if (columns.rows.some((column) => String(column.name) === "position")) return;
+    await this.db.execute(`ALTER TABLE ${table} ADD COLUMN position INTEGER NOT NULL DEFAULT 0`);
+  }
+
+  private async backfillPositions(table: "shopping_items" | "household_tasks") {
+    const families = await this.db.execute("SELECT id FROM families");
+    for (const family of families.rows) {
+      const pending = await this.db.execute({
+        sql: `SELECT id, position FROM ${table} WHERE family_id = ? AND completed = 0 ORDER BY created_at DESC`,
+        args: [String(family.id)]
+      });
+      if (pending.rows.length < 2) continue;
+      const positions = new Set(pending.rows.map((row) => Number(row.position)));
+      if (positions.size > 1) continue;
+      for (const [index, row] of pending.rows.entries()) {
+        await this.db.execute({
+          sql: `UPDATE ${table} SET position = ? WHERE id = ?`,
+          args: [index, String(row.id)]
+        });
+      }
+    }
+  }
+
+  private async nextPosition(table: "shopping_items" | "household_tasks", familyId: string) {
+    const result = await this.db.execute({
+      sql: `SELECT MIN(position) AS top FROM ${table} WHERE family_id = ? AND completed = 0`,
+      args: [familyId.toUpperCase()]
+    });
+    const top = result.rows[0]?.top;
+    return top === null || top === undefined ? 0 : Number(top) - 1;
   }
 
   private async importLegacyData() {
@@ -195,10 +237,10 @@ export class HomeRepository {
     const updatedAt = item.updatedAt || item.createdAt;
     await this.db.execute({
       sql: `INSERT OR IGNORE INTO shopping_items
-        (id, family_id, name, location_id, completed, created_at, updated_at, completed_at, archived_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, family_id, name, location_id, completed, position, created_at, updated_at, completed_at, archived_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
-        item.id, familyId, item.name, value(item.locationId), item.completed ? 1 : 0,
+        item.id, familyId, item.name, value(item.locationId), item.completed ? 1 : 0, item.position || 0,
         item.createdAt, updatedAt, value(item.completedAt || (item.completed ? updatedAt : null)), value(item.archivedAt)
       ]
     });
@@ -208,10 +250,11 @@ export class HomeRepository {
     const updatedAt = task.updatedAt || task.createdAt;
     await this.db.execute({
       sql: `INSERT OR IGNORE INTO household_tasks
-        (id, family_id, title, assignee, location_id, completed, created_at, updated_at, completed_at, archived_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, family_id, title, assignee, location_id, completed, position, created_at, updated_at, completed_at, archived_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         task.id, familyId, task.title, value(task.assignee), value(task.locationId), task.completed ? 1 : 0,
+        task.position || 0,
         task.createdAt, updatedAt, value(task.completedAt || (task.completed ? updatedAt : null)), value(task.archivedAt)
       ]
     });
@@ -245,13 +288,13 @@ export class HomeRepository {
     const [locationsResult, itemsResult, tasksResult, calendarResult] = await Promise.all([
       this.db.execute({ sql: "SELECT id, name FROM locations WHERE family_id = ? ORDER BY rowid", args: [id.toUpperCase()] }),
       this.db.execute({
-        sql: `SELECT id, name, location_id, completed, created_at, updated_at, completed_at, archived_at
-          FROM shopping_items WHERE family_id = ? ORDER BY created_at DESC`,
+        sql: `SELECT id, name, location_id, completed, position, created_at, updated_at, completed_at, archived_at
+          FROM shopping_items WHERE family_id = ? ORDER BY position ASC, created_at DESC`,
         args: [id.toUpperCase()]
       }),
       this.db.execute({
-        sql: `SELECT id, title, assignee, location_id, completed, created_at, updated_at, completed_at, archived_at
-          FROM household_tasks WHERE family_id = ? ORDER BY created_at DESC`,
+        sql: `SELECT id, title, assignee, location_id, completed, position, created_at, updated_at, completed_at, archived_at
+          FROM household_tasks WHERE family_id = ? ORDER BY position ASC, created_at DESC`,
         args: [id.toUpperCase()]
       }),
       this.db.execute({
@@ -272,6 +315,7 @@ export class HomeRepository {
         name: String(row.name),
         locationId: text(row.location_id),
         completed: Boolean(row.completed),
+        position: Number(row.position || 0),
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
         completedAt: text(row.completed_at),
@@ -283,6 +327,7 @@ export class HomeRepository {
         assignee: text(row.assignee) as Assignee | null,
         locationId: text(row.location_id),
         completed: Boolean(row.completed),
+        position: Number(row.position || 0),
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
         completedAt: text(row.completed_at),
@@ -322,16 +367,17 @@ export class HomeRepository {
     if (existing) return existing;
     const validLocation = family.locations.some(({ id }) => id === locationId) ? locationId : null;
     const now = new Date().toISOString();
+    const position = await this.nextPosition("shopping_items", familyId);
     const item: ShoppingItem = {
-      id: requestedId || nanoid(), name, locationId: validLocation, completed: false,
+      id: requestedId || nanoid(), name, locationId: validLocation, completed: false, position,
       createdAt: now, updatedAt: now, completedAt: null, archivedAt: null
     };
     await this.db.batch([
       {
         sql: `INSERT OR IGNORE INTO shopping_items
-          (id, family_id, name, location_id, completed, created_at, updated_at)
-          VALUES (?, ?, ?, ?, 0, ?, ?)`,
-        args: [item.id, familyId.toUpperCase(), name, value(validLocation), now, now]
+          (id, family_id, name, location_id, completed, position, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 0, ?, ?, ?)`,
+        args: [item.id, familyId.toUpperCase(), name, value(validLocation), position, now, now]
       },
       {
         sql: `INSERT INTO learned_products (family_id, name_key, name, uses, last_used_at)
@@ -368,6 +414,34 @@ export class HomeRepository {
     return result.rowsAffected > 0;
   }
 
+  async reorderItems(familyId: string, ids: string[]) {
+    return this.reorderEntries("shopping_items", familyId, ids);
+  }
+
+  async reorderTasks(familyId: string, ids: string[]) {
+    return this.reorderEntries("household_tasks", familyId, ids);
+  }
+
+  private async reorderEntries(
+    table: "shopping_items" | "household_tasks",
+    familyId: string,
+    ids: string[]
+  ) {
+    if (!(await this.getFamily(familyId))) return false;
+    const pending = await this.db.execute({
+      sql: `SELECT id FROM ${table} WHERE family_id = ? AND completed = 0`,
+      args: [familyId.toUpperCase()]
+    });
+    const pendingIds = new Set(pending.rows.map((row) => String(row.id)));
+    const ordered = [...new Set(ids)].filter((id) => pendingIds.has(id));
+    if (ordered.length === 0) return true;
+    await this.db.batch(ordered.map((id, index) => ({
+      sql: `UPDATE ${table} SET position = ? WHERE id = ? AND family_id = ?`,
+      args: [index, id, familyId.toUpperCase()]
+    })), "write");
+    return true;
+  }
+
   async deleteItem(familyId: string, itemId: string) {
     const result = await this.db.execute({
       sql: "DELETE FROM shopping_items WHERE id = ? AND family_id = ?",
@@ -389,15 +463,16 @@ export class HomeRepository {
     if (existing) return existing;
     const validLocation = family.locations.some(({ id }) => id === locationId) ? locationId : null;
     const now = new Date().toISOString();
+    const position = await this.nextPosition("household_tasks", familyId);
     const task: HouseholdTask = {
-      id: requestedId || nanoid(), title, assignee, locationId: validLocation, completed: false,
+      id: requestedId || nanoid(), title, assignee, locationId: validLocation, completed: false, position,
       createdAt: now, updatedAt: now, completedAt: null, archivedAt: null
     };
     await this.db.execute({
       sql: `INSERT OR IGNORE INTO household_tasks
-        (id, family_id, title, assignee, location_id, completed, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
-      args: [task.id, familyId.toUpperCase(), title, value(assignee), value(validLocation), now, now]
+        (id, family_id, title, assignee, location_id, completed, position, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+      args: [task.id, familyId.toUpperCase(), title, value(assignee), value(validLocation), position, now, now]
     });
     return task;
   }

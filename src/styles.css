@@ -21,6 +21,14 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+html.reordering,
+body.reordering {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  cursor: grabbing;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -654,6 +662,7 @@ textarea:focus-visible {
 }
 
 .filter-chips {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 3px;
@@ -666,7 +675,7 @@ textarea:focus-visible {
   background: var(--green);
 }
 
-.task-toolbar { justify-content: flex-start; }
+.task-toolbar { justify-content: space-between; }
 
 .manage-locations-button {
   width: 34px;
@@ -682,6 +691,40 @@ textarea:focus-visible {
 }
 
 .shopping-list { width: 100%; min-width: 0; display: grid; gap: 8px; }
+
+.sortable-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sortable-item {
+  min-width: 0;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.sortable-item.is-dragging {
+  position: relative;
+  z-index: 5;
+  touch-action: none;
+}
+
+.sortable-list.is-reordering,
+.sortable-list.is-reordering .swipe-card-content {
+  touch-action: none;
+}
+
+.sortable-list.is-reordering .shopping-row { animation: none; }
+
+.sortable-item.is-dragging .swipe-card { overflow: visible; }
+
+.sortable-item.is-dragging .shopping-row {
+  box-shadow: 0 12px 28px rgba(31, 39, 35, .16);
+  transform: scale(1.015);
+  border-color: rgba(31, 107, 79, .28);
+}
 
 .swipe-card {
   position: relative;
@@ -780,12 +823,35 @@ textarea:focus-visible {
 .edit-button { margin-left: auto; }
 .delete-button.direct-row-action { margin-left: 0; }
 
+.drag-handle {
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: #a3aaa6;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  opacity: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.shopping-row:has(.drag-handle) .edit-button { margin-left: 0; }
+
 .shopping-row:hover .edit-button,
 .shopping-row:hover .delete-button,
+.shopping-row:hover .drag-handle,
 .edit-button:focus-visible,
-.delete-button:focus-visible { opacity: 1; }
+.delete-button:focus-visible,
+.drag-handle:focus-visible,
+.sortable-item.is-dragging .drag-handle { opacity: 1; }
 .edit-button:hover { color: var(--green); background: var(--green-soft); }
 .delete-button:hover { color: #a84845; background: #faefed; }
+.drag-handle:hover { color: var(--green); background: var(--green-soft); }
+.drag-handle:active { cursor: grabbing; }
 
 .shopping-row.completed { background: rgba(255,255,255,.55); }
 .shopping-row.completed .check-button { background: var(--green); border-color: var(--green); }
@@ -1466,6 +1532,30 @@ textarea:focus-visible {
 
 .locations-modal header > button { width: 38px; height: 38px; background: #f3f4f0; }
 .locations-modal > p { margin: 15px 0 20px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+.list-settings-sort {
+  margin: 18px 0 22px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eef0ea;
+}
+
+.list-settings-sort h3,
+.list-settings-heading {
+  margin: 0 0 8px;
+  color: #919b95;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.list-settings-sort p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .locations-list { display: grid; gap: 7px; }
 
 .location-edit-row {
@@ -1815,6 +1905,8 @@ textarea:focus-visible {
 
   .swipe-card-content.dragging { transition: none; }
   .direct-row-action { display: none; }
+  .drag-handle { display: none; }
+  .shopping-row:has(.drag-handle) .edit-button { margin-left: auto; }
 
   .suggestions-menu {
     top: auto;

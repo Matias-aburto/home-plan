@@ -32,6 +32,16 @@ function capitalizeFirst(input: string) {
   return input ? input[0].toLocaleUpperCase("es-CL") + input.slice(1) : input;
 }
 
+function readIdList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(
+    value
+      .filter((id): id is string => typeof id === "string")
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0 && id.length <= 50)
+  )];
+}
+
 function readCalendarEntry(body: Record<string, unknown>) {
   const title = cleanText(body.title, 100);
   const kind = body.kind === "reminder" ? "reminder" : body.kind === "event" ? "event" : null;
@@ -118,6 +128,15 @@ app.post("/api/families/:id/items", async (request, response) => {
   return response.status(201).json(item);
 });
 
+app.post("/api/families/:id/items/reorder", async (request, response) => {
+  const ids = readIdList(request.body.ids);
+  if (ids.length === 0) return response.status(400).json({ message: "Indica el nuevo orden." });
+  const updated = await repository.reorderItems(request.params.id, ids);
+  if (!updated) return response.status(404).json({ message: "No encontramos esa familia." });
+  await broadcast(request.params.id);
+  return response.json({ ok: true });
+});
+
 app.patch("/api/families/:id/items/:itemId", async (request, response) => {
   const hasCompleted = typeof request.body.completed === "boolean";
   const hasDetails = "name" in request.body;
@@ -165,6 +184,15 @@ app.post("/api/families/:id/tasks", async (request, response) => {
   if (!task) return response.status(404).json({ message: "No encontramos esa familia." });
   await broadcast(request.params.id);
   return response.status(201).json(task);
+});
+
+app.post("/api/families/:id/tasks/reorder", async (request, response) => {
+  const ids = readIdList(request.body.ids);
+  if (ids.length === 0) return response.status(400).json({ message: "Indica el nuevo orden." });
+  const updated = await repository.reorderTasks(request.params.id, ids);
+  if (!updated) return response.status(404).json({ message: "No encontramos esa familia." });
+  await broadcast(request.params.id);
+  return response.json({ ok: true });
 });
 
 app.patch("/api/families/:id/tasks/:taskId", async (request, response) => {

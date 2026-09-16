@@ -1,8 +1,10 @@
 import {
   FormEvent,
+  createContext,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -18,6 +20,7 @@ import {
   Clock3,
   Copy,
   Download,
+  GripVertical,
   House,
   ListTodo,
   LogIn,
@@ -48,6 +51,7 @@ type ShoppingItem = {
   name: string;
   locationId: string | null;
   completed: boolean;
+  position: number;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -72,6 +76,7 @@ type HouseholdTask = {
   assignee: Assignee | null;
   locationId: string | null;
   completed: boolean;
+  position: number;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -102,6 +107,7 @@ type Family = {
 
 type View = "welcome" | "create" | "join";
 type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId">;
+type SortMode = "custom" | "alpha";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -141,6 +147,8 @@ function initialFamilyId() {
 function normalizeFamily(family: Family): Family {
   return {
     ...family,
+    items: (family.items || []).map((item, index) => ({ ...item, position: item.position ?? index })),
+    tasks: (family.tasks || []).map((task, index) => ({ ...task, position: task.position ?? index })),
     calendarEntries: family.calendarEntries || []
   };
 }
@@ -163,6 +171,76 @@ function archiveCompletedLocally<T extends {
       ? visibleIds.has(entry) ? null : entry.archivedAt || now
       : null
   }));
+}
+
+function readSortMode(key: string): SortMode {
+  return localStorage.getItem(key) === "alpha" ? "alpha" : "custom";
+}
+
+function useSortMode(key: string) {
+  const [mode, setMode] = useState<SortMode>(() => readSortMode(key));
+  useEffect(() => setMode(readSortMode(key)), [key]);
+  function update(next: SortMode) {
+    setMode(next);
+    localStorage.setItem(key, next);
+  }
+  return [mode, update] as const;
+}
+
+function nextListPosition(entries: { completed: boolean; position: number }[]) {
+  const positions = entries.filter((entry) => !entry.completed).map((entry) => entry.position);
+  return positions.length === 0 ? 0 : Math.min(...positions) - 1;
+}
+
+function sortPending<T extends { position: number; createdAt: string }>(
+  items: T[],
+  mode: SortMode,
+  label: (item: T) => string
+) {
+  const sorted = [...items];
+  if (mode === "alpha") {
+    return sorted.sort((a, b) =>
+      label(a).localeCompare(label(b), "es", { sensitivity: "base" }) || b.createdAt.localeCompare(a.createdAt)
+    );
+  }
+  return sorted.sort((a, b) => a.position - b.position || b.createdAt.localeCompare(a.createdAt));
+}
+
+function sortCompleted<T extends { completedAt: string | null; updatedAt: string }>(items: T[]) {
+  return [...items].sort((a, b) => (b.completedAt || b.updatedAt).localeCompare(a.completedAt || a.updatedAt));
+}
+
+function mergeVisibleOrder<T extends { id: string }>(allPending: T[], visibleIds: string[]) {
+  const visible = new Set(visibleIds);
+  let index = 0;
+  return allPending.map((item) => {
+    if (!visible.has(item.id)) return item;
+    const nextId = visibleIds[index++];
+    return allPending.find((candidate) => candidate.id === nextId) ?? item;
+  });
+}
+
+function withPendingPositions<T extends { id: string; completed: boolean; position: number }>(
+  entries: T[],
+  pending: T[]
+) {
+  const positions = new Map(pending.map((entry, index) => [entry.id, index]));
+  return entries.map((entry) =>
+    positions.has(entry.id) ? { ...entry, position: positions.get(entry.id)! } : entry
+  );
+}
+
+function SortChips({ value, onChange }: { value: SortMode; onChange: (mode: SortMode) => void }) {
+  return (
+    <div className="entry-type-picker" role="group" aria-label="Orden de la lista">
+      <button type="button" className={value === "custom" ? "selected" : ""} onClick={() => onChange("custom")}>
+        Personalizado
+      </button>
+      <button type="button" className={value === "alpha" ? "selected" : ""} onClick={() => onChange("alpha")}>
+        Alfabético
+      </button>
+    </div>
+  );
 }
 
 function useInstallApp() {
@@ -547,14 +625,22 @@ function FamilyHome({
   const [managingLocations, setManagingLocations] = useState(false);
   const [choosingLocation, setChoosingLocation] = useState(false);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
+  const [sortMode, setSortMode] = useSortMode(`sort:shopping:${family.id}`);
+  const [taskSortMode, setTaskSortMode] = useSortMode(`sort:tasks:${family.id}`);
   const visibleItems = useMemo(
     () => family.items.filter((item) =>
       !item.archivedAt && (filter === "all" || (filter === "none" ? !item.locationId : item.locationId === filter))
     ),
     [family.items, filter]
   );
-  const pendingItems = useMemo(() => visibleItems.filter((item) => !item.completed), [visibleItems]);
-  const completedItems = useMemo(() => visibleItems.filter((item) => item.completed), [visibleItems]);
+  const pendingItems = useMemo(
+    () => sortPending(visibleItems.filter((item) => !item.completed), sortMode, (item) => item.name),
+    [visibleItems, sortMode]
+  );
+  const completedItems = useMemo(
+    () => sortCompleted(visibleItems.filter((item) => item.completed)),
+    [visibleItems]
+  );
   const totalPending = useMemo(() => family.items.filter((item) => !item.completed).length, [family.items]);
   const selectedLocation = family.locations.find(({ id }) => id === locationId);
 
@@ -603,6 +689,7 @@ function FamilyHome({
         name: formattedName,
         locationId: locationId || null,
         completed: false,
+        position: nextListPosition(family.items),
         createdAt: now,
         updatedAt: now,
         completedAt: null,
@@ -660,6 +747,21 @@ function FamilyHome({
       body: { name, locationId: nextLocationId }
     });
     setEditingItem(null);
+  }
+
+  async function reorderItems(visibleIds: string[]) {
+    const allPending = sortPending(
+      family.items.filter((item) => !item.completed && !item.archivedAt),
+      sortMode,
+      (item) => item.name
+    );
+    setSortMode("custom");
+    const merged = mergeVisibleOrder(allPending, visibleIds);
+    await onMutate({ ...family, items: withPendingPositions(family.items, merged) }, {
+      url: `/api/families/${family.id}/items/reorder`,
+      method: "POST",
+      body: { ids: merged.map((item) => item.id) }
+    });
   }
 
   function selectSuggestion(suggestion: Suggestion) {
@@ -852,7 +954,7 @@ function FamilyHome({
               ))}
               <button className={filter === "none" ? "selected" : ""} onClick={() => setFilter("none")}>General</button>
             </div>
-            <button className="manage-locations-button" onClick={() => setManagingLocations(true)} aria-label="Administrar ubicaciones">
+            <button className="manage-locations-button" onClick={() => setManagingLocations(true)} aria-label="Ajustes de la lista">
               <Settings2 size={17} />
             </button>
           </div>
@@ -866,9 +968,20 @@ function FamilyHome({
               </div>
             ) : (
               <>
-                {pendingItems.map((item) => (
-                  <ShoppingRow key={item.id} item={item} locations={family.locations} onToggle={toggleItem} onEdit={setEditingItem} onDelete={deleteItem} />
-                ))}
+                <SortableList
+                  items={pendingItems}
+                  onReorder={reorderItems}
+                  renderItem={(item, dragHandle) => (
+                    <ShoppingRow
+                      item={item}
+                      locations={family.locations}
+                      dragHandle={dragHandle}
+                      onToggle={toggleItem}
+                      onEdit={setEditingItem}
+                      onDelete={deleteItem}
+                    />
+                  )}
+                />
                 {completedItems.length > 0 && (
                   <div className="completed-section">
                     <h3>Comprados · {completedItems.length}</h3>
@@ -884,6 +997,8 @@ function FamilyHome({
         {activeSection === "tasks" && (
           <TasksSection
             family={family}
+            sortMode={taskSortMode}
+            onSortChange={setTaskSortMode}
             onMutate={onMutate}
             onManageLocations={() => setManagingLocations(true)}
           />
@@ -891,7 +1006,12 @@ function FamilyHome({
         {activeSection === "calendar" && <CalendarSection family={family} onMutate={onMutate} />}
       </div>
       {managingLocations && (
-        <LocationManager family={family} onClose={() => setManagingLocations(false)} />
+        <LocationManager
+          family={family}
+          sortMode={activeSection === "tasks" ? taskSortMode : sortMode}
+          onSortChange={activeSection === "tasks" ? setTaskSortMode : setSortMode}
+          onClose={() => setManagingLocations(false)}
+        />
       )}
       {choosingLocation && (
         <div className="location-sheet-backdrop" onMouseDown={() => setChoosingLocation(false)}>
@@ -941,6 +1061,220 @@ function FamilyHome({
   );
 }
 
+const ReorderLockContext = createContext(false);
+
+function SortableList<T extends { id: string }>({
+  items,
+  onReorder,
+  renderItem
+}: {
+  items: T[];
+  onReorder: (ids: string[]) => void;
+  renderItem: (item: T, handle: ReactNode) => ReactNode;
+}) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [order, setOrder] = useState(() => items.map((item) => item.id));
+  const draggingIdRef = useRef<string | null>(null);
+  const orderRef = useRef(order);
+  const itemsRef = useRef(items);
+  const origin = useRef<{ id: string; x: number; y: number; pointerId: number; node: HTMLElement } | null>(null);
+  const longPress = useRef<number | null>(null);
+  const didMove = useRef(false);
+  const suppressClick = useRef(false);
+  const scrollBlocker = useRef<((event: TouchEvent) => void) | null>(null);
+  const windowMove = useRef<((event: PointerEvent) => void) | null>(null);
+  const windowUp = useRef<((event: PointerEvent) => void) | null>(null);
+  const itemIds = items.map((item) => item.id).join(",");
+
+  itemsRef.current = items;
+  orderRef.current = order;
+
+  useEffect(() => {
+    if (!draggingId) setOrder(items.map((item) => item.id));
+  }, [draggingId, itemIds, items]);
+
+  useEffect(() => () => {
+    clearTimer();
+    unlockScroll();
+    detachWindow();
+  }, []);
+
+  function clearTimer() {
+    if (longPress.current) {
+      window.clearTimeout(longPress.current);
+      longPress.current = null;
+    }
+  }
+
+  function lockScroll() {
+    if (scrollBlocker.current) return;
+    const blocker = (event: TouchEvent) => event.preventDefault();
+    scrollBlocker.current = blocker;
+    document.addEventListener("touchmove", blocker, { passive: false, capture: true });
+    document.documentElement.classList.add("reordering");
+    document.body.classList.add("reordering");
+  }
+
+  function unlockScroll() {
+    if (!scrollBlocker.current) return;
+    document.removeEventListener("touchmove", scrollBlocker.current, true);
+    scrollBlocker.current = null;
+    document.documentElement.classList.remove("reordering");
+    document.body.classList.remove("reordering");
+  }
+
+  function detachWindow() {
+    if (windowMove.current) window.removeEventListener("pointermove", windowMove.current);
+    if (windowUp.current) {
+      window.removeEventListener("pointerup", windowUp.current);
+      window.removeEventListener("pointercancel", windowUp.current);
+    }
+    windowMove.current = null;
+    windowUp.current = null;
+  }
+
+  function attachWindow(pointerId: number) {
+    detachWindow();
+    const onMove = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId) return;
+      handleMove(event.clientX, event.clientY);
+    };
+    const onUp = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId) return;
+      finishDrag();
+    };
+    windowMove.current = onMove;
+    windowUp.current = onUp;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  }
+
+  function beginDrag(id: string, pointerId: number, target: HTMLElement | null) {
+    clearTimer();
+    draggingIdRef.current = id;
+    setDraggingId(id);
+    lockScroll();
+    const item = target?.closest(".sortable-item") as HTMLElement | null;
+    try {
+      item?.setPointerCapture(pointerId);
+    } catch {
+      // El pointer puede no admitir captura en este elemento.
+    }
+    attachWindow(pointerId);
+    navigator.vibrate?.(12);
+  }
+
+  function startHold(event: ReactPointerEvent<HTMLElement>, id: string, fromHandle: boolean) {
+    if (itemsRef.current.length < 2) return;
+    origin.current = { id, x: event.clientX, y: event.clientY, pointerId: event.pointerId, node: event.currentTarget };
+    didMove.current = false;
+    if (fromHandle && event.pointerType !== "touch") {
+      beginDrag(id, event.pointerId, event.currentTarget);
+      return;
+    }
+    if (event.pointerType !== "touch") return;
+    longPress.current = window.setTimeout(() => {
+      if (!origin.current) return;
+      beginDrag(origin.current.id, origin.current.pointerId, origin.current.node);
+    }, 420);
+  }
+
+  function handleMove(clientX: number, clientY: number) {
+    if (!origin.current) return;
+    const deltaX = clientX - origin.current.x;
+    const deltaY = clientY - origin.current.y;
+    if (!draggingIdRef.current) {
+      if (Math.hypot(deltaX, deltaY) > 8) clearTimer();
+      return;
+    }
+    const over = document.elementFromPoint(clientX, clientY)?.closest("[data-sortable-id]") as HTMLElement | null;
+    const overId = over?.dataset.sortableId;
+    if (!overId || overId === draggingIdRef.current) return;
+    const from = orderRef.current.indexOf(draggingIdRef.current);
+    const to = orderRef.current.indexOf(overId);
+    if (from < 0 || to < 0 || from === to) return;
+    const rect = over.getBoundingClientRect();
+    const middle = rect.top + rect.height / 2;
+    if (from < to && clientY < middle) return;
+    if (from > to && clientY > middle) return;
+    didMove.current = true;
+    const next = [...orderRef.current];
+    next.splice(from, 1);
+    next.splice(to, 0, draggingIdRef.current);
+    orderRef.current = next;
+    setOrder(next);
+  }
+
+  function finishDrag() {
+    clearTimer();
+    detachWindow();
+    unlockScroll();
+    const dragged = draggingIdRef.current;
+    const nextOrder = orderRef.current;
+    const previous = itemsRef.current.map((item) => item.id);
+    const moved = didMove.current;
+    origin.current = null;
+    draggingIdRef.current = null;
+    setDraggingId(null);
+    didMove.current = false;
+    if (!dragged || !moved || nextOrder.join() === previous.join()) return;
+    suppressClick.current = true;
+    onReorder(nextOrder);
+  }
+
+  function pointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!origin.current) return;
+    if (draggingIdRef.current) event.preventDefault();
+    handleMove(event.clientX, event.clientY);
+  }
+
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const orderedItems = order.map((id) => byId.get(id)).filter((item): item is T => Boolean(item));
+
+  return (
+    <ReorderLockContext.Provider value={Boolean(draggingId)}>
+      <div className={`sortable-list ${draggingId ? "is-reordering" : ""}`}>
+        {orderedItems.map((item) => (
+          <div
+            key={item.id}
+            data-sortable-id={item.id}
+            className={`sortable-item ${draggingId === item.id ? "is-dragging" : ""}`}
+            onPointerDown={(event) => startHold(event, item.id, false)}
+            onPointerMove={pointerMove}
+            onPointerUp={finishDrag}
+            onPointerCancel={finishDrag}
+            onContextMenu={(event) => {
+              if (draggingIdRef.current) event.preventDefault();
+            }}
+            onClickCapture={(event) => {
+              if (!suppressClick.current) return;
+              event.preventDefault();
+              event.stopPropagation();
+              suppressClick.current = false;
+            }}
+          >
+            {renderItem(item, (
+              <button
+                type="button"
+                className="drag-handle"
+                aria-label="Reordenar"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startHold(event, item.id, true);
+                }}
+              >
+                <GripVertical size={16} />
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+    </ReorderLockContext.Provider>
+  );
+}
+
 function SwipeCard({
   label,
   children,
@@ -952,33 +1286,53 @@ function SwipeCard({
   onEdit: () => void;
   onDelete: () => Promise<void>;
 }) {
+  const reordering = useContext(ReorderLockContext);
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const start = useRef<{ x: number; y: number; offset: number } | null>(null);
+  const start = useRef<{ x: number; y: number; offset: number; armed: boolean } | null>(null);
   const actionWidth = 140;
 
+  useEffect(() => {
+    if (!reordering) return;
+    start.current = null;
+    setOffset(0);
+    setDragging(false);
+  }, [reordering]);
+
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.pointerType !== "touch") return;
-    start.current = { x: event.clientX, y: event.clientY, offset };
-    setDragging(true);
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (event.pointerType !== "touch" || reordering) return;
+    start.current = { x: event.clientX, y: event.clientY, offset, armed: false };
   }
 
   function pointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!start.current || event.pointerType !== "touch") return;
+    if (!start.current || event.pointerType !== "touch" || reordering) return;
     const deltaX = event.clientX - start.current.x;
     const deltaY = event.clientY - start.current.y;
-    if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 8) return;
+    if (!start.current.armed) {
+      if (Math.abs(deltaX) < 12 && Math.abs(deltaY) < 12) return;
+      if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+        start.current = null;
+        return;
+      }
+      start.current.armed = true;
+      setDragging(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
     setOffset(Math.max(-actionWidth, Math.min(0, start.current.offset + deltaX)));
   }
 
   function pointerEnd(event: ReactPointerEvent<HTMLDivElement>) {
     if (!start.current) return;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    const finalOffset = Math.max(
-      -actionWidth,
-      Math.min(0, start.current.offset + event.clientX - start.current.x)
-    );
+    if (start.current.armed) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // El pointer ya no está capturado.
+      }
+    }
+    const finalOffset = start.current.armed
+      ? Math.max(-actionWidth, Math.min(0, start.current.offset + event.clientX - start.current.x))
+      : start.current.offset;
     setOffset(finalOffset < -44 ? -actionWidth : 0);
     setDragging(false);
     start.current = null;
@@ -986,7 +1340,13 @@ function SwipeCard({
 
   function pointerCancel(event: ReactPointerEvent<HTMLDivElement>) {
     if (!start.current) return;
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (start.current.armed) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // El pointer ya no está capturado.
+      }
+    }
     setOffset(start.current.offset);
     setDragging(false);
     start.current = null;
@@ -1022,12 +1382,14 @@ function SwipeCard({
 function ShoppingRow({
   item,
   locations,
+  dragHandle,
   onToggle,
   onEdit,
   onDelete
 }: {
   item: ShoppingItem;
   locations: Location[];
+  dragHandle?: ReactNode;
   onToggle: (item: ShoppingItem) => Promise<void>;
   onEdit: (item: ShoppingItem) => void;
   onDelete: (item: ShoppingItem) => Promise<void>;
@@ -1073,6 +1435,7 @@ function ShoppingRow({
             </small>
           )}
         </button>
+        {dragHandle}
         <button className="edit-button direct-row-action" onClick={() => onEdit(item)} aria-label={`Editar ${item.name}`}>
           <Pencil size={16} />
         </button>
@@ -1086,10 +1449,14 @@ function ShoppingRow({
 
 function TasksSection({
   family,
+  sortMode,
+  onSortChange,
   onMutate,
   onManageLocations
 }: {
   family: Family;
+  sortMode: SortMode;
+  onSortChange: (mode: SortMode) => void;
   onMutate: (family: Family, operation: OfflineMutation) => Promise<void>;
   onManageLocations: () => void;
 }) {
@@ -1107,8 +1474,14 @@ function TasksSection({
     ),
     [family.tasks, filter]
   );
-  const pendingTasks = useMemo(() => visibleTasks.filter((task) => !task.completed), [visibleTasks]);
-  const completedTasks = useMemo(() => visibleTasks.filter((task) => task.completed), [visibleTasks]);
+  const pendingTasks = useMemo(
+    () => sortPending(visibleTasks.filter((task) => !task.completed), sortMode, (task) => task.title),
+    [visibleTasks, sortMode]
+  );
+  const completedTasks = useMemo(
+    () => sortCompleted(visibleTasks.filter((task) => task.completed)),
+    [visibleTasks]
+  );
 
   async function addTask(event: FormEvent) {
     event.preventDefault();
@@ -1123,6 +1496,7 @@ function TasksSection({
         assignee,
         locationId: locationId || null,
         completed: false,
+        position: nextListPosition(family.tasks),
         createdAt: now,
         updatedAt: now,
         completedAt: null,
@@ -1188,6 +1562,21 @@ function TasksSection({
       body: { title: formattedTitle, locationId: nextLocationId, assignee: nextAssignee }
     });
     setEditingTask(null);
+  }
+
+  async function reorderTasks(visibleIds: string[]) {
+    const allPending = sortPending(
+      family.tasks.filter((task) => !task.completed && !task.archivedAt),
+      sortMode,
+      (task) => task.title
+    );
+    onSortChange("custom");
+    const merged = mergeVisibleOrder(allPending, visibleIds);
+    await onMutate({ ...family, tasks: withPendingPositions(family.tasks, merged) }, {
+      url: `/api/families/${family.id}/tasks/reorder`,
+      method: "POST",
+      body: { ids: merged.map((task) => task.id) }
+    });
   }
 
   return (
@@ -1268,6 +1657,9 @@ function TasksSection({
           ))}
           <button className={filter === "none" ? "selected" : ""} onClick={() => setFilter("none")}>Sin asignar</button>
         </div>
+        <button className="manage-locations-button" onClick={onManageLocations} aria-label="Ajustes de la lista">
+          <Settings2 size={17} />
+        </button>
       </div>
 
       <div className="shopping-list">
@@ -1279,9 +1671,22 @@ function TasksSection({
           </div>
         ) : (
           <>
-            {pendingTasks.map((task) => (
-              <TaskRow key={task.id} task={task} locations={family.locations} onToggle={toggleTask} onEdit={setEditingTask} onDelete={deleteTask} />
-            ))}
+            {pendingTasks.length > 0 && (
+              <SortableList
+                items={pendingTasks}
+                onReorder={reorderTasks}
+                renderItem={(task, dragHandle) => (
+                  <TaskRow
+                    task={task}
+                    locations={family.locations}
+                    dragHandle={dragHandle}
+                    onToggle={toggleTask}
+                    onEdit={setEditingTask}
+                    onDelete={deleteTask}
+                  />
+                )}
+              />
+            )}
             {completedTasks.length > 0 && (
               <div className="completed-section">
                 <h3>Completadas · {completedTasks.length}</h3>
@@ -1357,12 +1762,14 @@ function TasksSection({
 function TaskRow({
   task,
   locations,
+  dragHandle,
   onToggle,
   onEdit,
   onDelete
 }: {
   task: HouseholdTask;
   locations: Location[];
+  dragHandle?: ReactNode;
   onToggle: (task: HouseholdTask) => Promise<void>;
   onEdit: (task: HouseholdTask) => void;
   onDelete: (task: HouseholdTask) => Promise<void>;
@@ -1409,6 +1816,7 @@ function TaskRow({
             </small>
           )}
         </button>
+        {dragHandle}
         <button className="edit-button direct-row-action" onClick={() => onEdit(task)} aria-label={`Editar ${task.title}`}>
           <Pencil size={16} />
         </button>
@@ -1895,7 +2303,17 @@ function IosInstallGuide({ onClose }: { onClose: () => void }) {
   );
 }
 
-function LocationManager({ family, onClose }: { family: Family; onClose: () => void }) {
+function LocationManager({
+  family,
+  sortMode,
+  onSortChange,
+  onClose
+}: {
+  family: Family;
+  sortMode: SortMode;
+  onSortChange: (mode: SortMode) => void;
+  onClose: () => void;
+}) {
   const [newLocation, setNewLocation] = useState("");
   const [error, setError] = useState("");
 
@@ -1936,10 +2354,16 @@ function LocationManager({ family, onClose }: { family: Family; onClose: () => v
         <header>
           <div>
             <div className="eyebrow">Tu hogar</div>
-            <h2>Ubicaciones</h2>
+            <h2>Ajustes</h2>
           </div>
           <button onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
         </header>
+        <div className="list-settings-sort">
+          <h3>Orden</h3>
+          <SortChips value={sortMode} onChange={onSortChange} />
+          <p>Arrastrá los ítems para armar el orden personalizado.</p>
+        </div>
+        <h3 className="list-settings-heading">Ubicaciones</h3>
         <p>Usa las que necesites. Si eliminas una, sus productos quedarán como generales.</p>
         <div className="locations-list">
           {family.locations.map((location) => (
