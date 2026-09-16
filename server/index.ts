@@ -28,6 +28,10 @@ function cleanText(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
+function capitalizeFirst(input: string) {
+  return input ? input[0].toLocaleUpperCase("es-CL") + input.slice(1) : input;
+}
+
 function readCalendarEntry(body: Record<string, unknown>) {
   const title = cleanText(body.title, 100);
   const kind = body.kind === "reminder" ? "reminder" : body.kind === "event" ? "event" : null;
@@ -103,7 +107,7 @@ app.get("/api/families/:id/suggestions", async (request, response) => {
 });
 
 app.post("/api/families/:id/items", async (request, response) => {
-  const name = cleanText(request.body.name, 80);
+  const name = capitalizeFirst(cleanText(request.body.name, 80));
   const locationId = cleanText(request.body.locationId, 30) || null;
   const requestedId = cleanText(request.body.id, 50) || undefined;
   if (!name) return response.status(400).json({ message: "Escribe qué necesitas comprar." });
@@ -115,14 +119,25 @@ app.post("/api/families/:id/items", async (request, response) => {
 });
 
 app.patch("/api/families/:id/items/:itemId", async (request, response) => {
-  if (typeof request.body.completed !== "boolean") {
-    return response.status(400).json({ message: "Indica el estado del producto." });
+  const hasCompleted = typeof request.body.completed === "boolean";
+  const hasDetails = "name" in request.body;
+  if (!hasCompleted && !hasDetails) {
+    return response.status(400).json({ message: "Indica qué quieres modificar." });
   }
-  const updated = await repository.setItemCompleted(
-    request.params.id,
-    request.params.itemId,
-    request.body.completed
-  );
+  let updated = true;
+  if (hasCompleted) {
+    updated = await repository.setItemCompleted(
+      request.params.id,
+      request.params.itemId,
+      request.body.completed
+    );
+  }
+  if (updated && hasDetails) {
+    const name = capitalizeFirst(cleanText(request.body.name, 80));
+    const locationId = cleanText(request.body.locationId, 30) || null;
+    if (!name) return response.status(400).json({ message: "Escribe qué necesitas comprar." });
+    updated = await repository.updateItemDetails(request.params.id, request.params.itemId, name, locationId);
+  }
   if (!updated) return response.status(404).json({ message: "No encontramos ese producto." });
   const family = await broadcast(request.params.id);
   return response.json(family?.items.find(({ id }) => id === request.params.itemId));
@@ -138,14 +153,15 @@ app.delete("/api/families/:id/items/:itemId", async (request, response) => {
 });
 
 app.post("/api/families/:id/tasks", async (request, response) => {
-  const title = cleanText(request.body.title, 100);
+  const title = capitalizeFirst(cleanText(request.body.title, 100));
   const assignee: Assignee | null = request.body.assignee === "Matías" || request.body.assignee === "Francisca"
     ? request.body.assignee
     : null;
+  const locationId = cleanText(request.body.locationId, 30) || null;
   const requestedId = cleanText(request.body.id, 50) || undefined;
   if (!title) return response.status(400).json({ message: "Escribe qué hay que hacer." });
 
-  const task = await repository.addTask(request.params.id, title, assignee, requestedId);
+  const task = await repository.addTask(request.params.id, title, assignee, locationId, requestedId);
   if (!task) return response.status(404).json({ message: "No encontramos esa familia." });
   await broadcast(request.params.id);
   return response.status(201).json(task);
@@ -158,7 +174,23 @@ app.patch("/api/families/:id/tasks/:taskId", async (request, response) => {
       ? request.body.assignee
       : null
     : undefined;
-  const updated = await repository.updateTask(request.params.id, request.params.taskId, completed, assignee);
+  const locationId = "locationId" in request.body
+    ? cleanText(request.body.locationId, 30) || null
+    : undefined;
+  const title = "title" in request.body
+    ? capitalizeFirst(cleanText(request.body.title, 100))
+    : undefined;
+  if ("title" in request.body && !title) {
+    return response.status(400).json({ message: "Escribe qué hay que hacer." });
+  }
+  const updated = await repository.updateTask(
+    request.params.id,
+    request.params.taskId,
+    completed,
+    assignee,
+    locationId,
+    title
+  );
   if (!updated) return response.status(404).json({ message: "No encontramos esa tarea." });
   const family = await broadcast(request.params.id);
   return response.json(family?.tasks.find(({ id }) => id === request.params.taskId));

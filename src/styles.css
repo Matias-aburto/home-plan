@@ -15,12 +15,26 @@
   --surface: #fff;
 }
 
+html {
+  max-width: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
   min-width: 320px;
+  max-width: 100%;
   min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 button,
@@ -628,6 +642,9 @@ textarea:focus-visible {
   background: var(--green-soft);
 }
 
+.task-options-picker .location-picker + .location-picker { margin-top: 0; }
+.manage-task-locations { width: 30px; padding: 0 !important; justify-content: center; }
+
 .list-toolbar {
   margin: -7px 0 14px;
   display: flex;
@@ -664,10 +681,25 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
-.shopping-list { display: grid; gap: 8px; }
+.shopping-list { width: 100%; min-width: 0; display: grid; gap: 8px; }
+
+.swipe-card {
+  position: relative;
+  min-width: 0;
+}
+
+.swipe-actions { display: none; }
+
+.swipe-card-content {
+  position: relative;
+  z-index: 1;
+}
 
 .shopping-row {
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 64px;
   padding: 10px 12px 10px 17px;
   display: flex;
@@ -705,6 +737,9 @@ textarea:focus-visible {
 }
 
 .item-copy-button {
+  width: 0;
+  max-width: 100%;
+  flex: 1 1 0%;
   padding: 0;
   color: inherit;
   background: transparent;
@@ -714,6 +749,8 @@ textarea:focus-visible {
 }
 
 .item-copy span {
+  display: block;
+  width: 100%;
   overflow: hidden;
   font-size: 15px;
   font-weight: 600;
@@ -721,13 +758,14 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
-.item-copy small { color: var(--muted); font-size: 12px; }
-.item-copy small em { display: inline-flex; align-items: center; gap: 2px; color: var(--green); font-style: normal; }
+.item-copy small { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 7px; color: var(--muted); font-size: 12px; }
+.item-copy small em { min-width: 0; display: inline-flex; align-items: center; gap: 2px; color: var(--green); font-style: normal; }
 
+.edit-button,
 .delete-button {
   width: 36px;
   height: 36px;
-  margin-left: auto;
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
   color: #a3aaa6;
@@ -739,8 +777,14 @@ textarea:focus-visible {
   transition: opacity 160ms ease, color 160ms ease, background 160ms ease;
 }
 
+.edit-button { margin-left: auto; }
+.delete-button.direct-row-action { margin-left: 0; }
+
+.shopping-row:hover .edit-button,
 .shopping-row:hover .delete-button,
+.edit-button:focus-visible,
 .delete-button:focus-visible { opacity: 1; }
+.edit-button:hover { color: var(--green); background: var(--green-soft); }
 .delete-button:hover { color: #a84845; background: #faefed; }
 
 .shopping-row.completed { background: rgba(255,255,255,.55); }
@@ -1102,6 +1146,104 @@ textarea:focus-visible {
   background: rgba(22, 34, 28, .36);
   backdrop-filter: blur(5px);
 }
+
+.entry-edit-modal {
+  width: min(100%, 460px);
+  padding: 26px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgba(20, 34, 27, .24);
+}
+
+.entry-edit-modal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.entry-edit-modal h2 {
+  margin: 0;
+  font-family: "Manrope", sans-serif;
+  font-size: 24px;
+}
+
+.entry-edit-modal header button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  color: #8d9791;
+  background: #f3f4f0;
+  border: 0;
+  border-radius: 10px;
+}
+
+.entry-edit-modal form {
+  margin-top: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.entry-edit-modal label {
+  display: grid;
+  gap: 7px;
+  color: #435149;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.entry-edit-modal input {
+  width: 100%;
+  height: 46px;
+  padding: 0 13px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #dfe2dc;
+  border-radius: 11px;
+  outline: 0;
+}
+
+.entry-edit-modal fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.entry-edit-modal legend {
+  margin-bottom: 8px;
+  color: #435149;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.edit-option-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.edit-option-chips button {
+  height: 34px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #6f7b74;
+  background: #f5f6f2;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.edit-option-chips button.selected {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: #cfe0d7;
+}
+
+.entry-edit-modal .primary-button { width: 100%; height: 48px; }
 
 .locations-modal {
   width: min(100%, 450px);
@@ -1470,6 +1612,14 @@ textarea:focus-visible {
 }
 
 @media (max-width: 720px) {
+  body { min-width: 0; }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
   .app-header {
     position: sticky;
     z-index: 5;
@@ -1552,6 +1702,10 @@ textarea:focus-visible {
   .nav-item:nth-child(3) { order: 1; }
   .sidebar-bottom { display: none; }
   .content { padding: 35px 16px calc(190px + env(safe-area-inset-bottom)); }
+  .content,
+  .content-heading,
+  .shopping-list,
+  .shopping-row { min-width: 0; max-width: 100%; }
   .content-heading { align-items: start; }
   .content-heading > span { padding-top: 25px; }
   .list-toolbar { margin: 24px 0 14px; }
@@ -1606,6 +1760,62 @@ textarea:focus-visible {
   .item-input-wrap > svg { display: none; }
   .location-picker { display: none; }
 
+  .swipe-card {
+    overflow: hidden;
+    border-radius: 14px;
+    background: transparent;
+  }
+
+  .swipe-card .shopping-row {
+    border-radius: 14px;
+  }
+
+  .swipe-actions {
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 140px;
+    padding-left: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .swipe-card.open .swipe-actions,
+  .swipe-card.dragging .swipe-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .swipe-actions button {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: #fff;
+    border: 0;
+    border-radius: 14px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .swipe-edit { background: #548270; }
+  .swipe-delete { background: #bb5d55; }
+
+  .swipe-card-content {
+    touch-action: pan-y;
+    transition: transform 220ms cubic-bezier(.2,.8,.2,1);
+  }
+
+  .swipe-card-content.dragging { transition: none; }
+  .direct-row-action { display: none; }
+
   .suggestions-menu {
     top: auto;
     right: auto;
@@ -1619,8 +1829,6 @@ textarea:focus-visible {
 
   .add-button { width: 42px; padding: 0; justify-content: center; }
   .add-button span { display: none; }
-  .delete-button { opacity: .72; }
-
   .location-sheet-backdrop {
     position: fixed;
     z-index: 30;
@@ -1634,7 +1842,10 @@ textarea:focus-visible {
 
   .mobile-location-sheet {
     width: 100%;
+    max-height: min(82dvh, 680px);
     padding: 9px 14px calc(16px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: #fff;
     border-radius: 22px;
     box-shadow: 0 18px 60px rgba(20, 34, 27, .25);
@@ -1654,6 +1865,14 @@ textarea:focus-visible {
     font-size: 21px;
   }
 
+  .mobile-location-sheet h3 {
+    margin: 16px 12px 5px;
+    color: #909a94;
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
   .mobile-location-sheet > button {
     width: 100%;
     min-height: 56px;
@@ -1671,6 +1890,23 @@ textarea:focus-visible {
   .mobile-location-sheet > button.selected {
     color: var(--green);
     background: var(--green-soft);
+  }
+
+  .mobile-location-sheet > button.sheet-manage-button {
+    min-height: 46px;
+    margin-top: 3px;
+    color: var(--green);
+    border: 1px dashed #cbd9d1;
+  }
+
+  .mobile-location-sheet > button.sheet-done-button {
+    min-height: 48px;
+    margin-top: 14px;
+    justify-content: center;
+    color: #fff;
+    background: var(--green);
+    font-weight: 700;
+    text-align: center;
   }
 
   .mobile-location-sheet > button > span {
@@ -1702,6 +1938,13 @@ textarea:focus-visible {
   .locations-modal {
     width: 100%;
     padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+    border-radius: 22px 22px 14px 14px;
+  }
+  .entry-edit-modal {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    padding: 22px 18px calc(18px + env(safe-area-inset-bottom));
+    overflow-y: auto;
     border-radius: 22px 22px 14px 14px;
   }
   .calendar-modal-backdrop { padding: 0; align-items: stretch; }
