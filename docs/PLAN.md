@@ -1,0 +1,429 @@
+# Plan: cuentas, listas personalizadas y familias
+
+Estado: **planificación** (sin desarrollo iniciado).
+
+## 1. Objetivo
+
+Pasar de un modelo "código familiar = acceso a todo" a un modelo basado en **cuentas de usuario**:
+
+- Cada persona inicia sesión con Google.
+- En su espacio personal puede crear, gestionar y ordenar **listas a demanda**.
+- Puede pertenecer a **varias familias**, cada una con su propio contenido (listas compartidas, calendario, ubicaciones, productos aprendidos).
+- Se entra a una familia o a una lista mediante **invitaciones** que se pueden **aceptar o rechazar**.
+- Una lista puede ser personal, de una familia, y además **compartirse con personas puntuales**.
+- Los datos actuales (familia `CASA`, etc.) se **migran** y se reclaman.
+
+## 2. Decisiones tomadas
+
+| Tema | Decisión |
+|---|---|
+| Login | Solo Google (OAuth / Google Identity Services). Sin contraseñas ni envío de correos. |
+| Sesión | Cookie httpOnly con token opaco guardado (hash) en tabla `sessions`. No JWT. |
+| Invitado | Estado de una invitación (pendiente → aceptada / rechazada). No es un modo sin cuenta. |
+| Familias | Un usuario puede pertenecer a varias; cada una con su propio contenido. |
+| Compartir listas | Dueño = usuario **o** familia, y además compartible con usuarios puntuales (`list_members`). |
+| Datos actuales | Se migran; el primer usuario que ingresa el código antiguo reclama la familia como `owner`. |
+| Notificaciones | Dentro de la app (bandeja de invitaciones + socket). Email queda como extra futuro. |
+
+## 3. Conceptos y reglas
+
+- **Usuario**: identificado por su cuenta Google (`google_sub`) y email.
+- **Espacio personal**: listas cuyo dueño es el usuario + listas compartidas con él.
+- **Familia**: grupo con roles `owner`, `admin`, `member`.
+  - Siempre debe tener al menos un `owner`.
+  - `owner`/`admin` invitan, quitan miembros y gestionan la familia; `member` usa y crea listas de la familia.
+  - Solo `owner` puede borrar la familia o transferir la propiedad.
+- **Lista**: pertenece a exactamente **un** dueño (`owner_user_id` XOR `family_id`).
+  - Tipos: `shopping` (ubicación + sugerencias), `tasks` (responsable + ubicación), `checklist` (solo título).
+  - Se puede compartir con usuarios puntuales con permiso `editor` o `viewer`.
+  - Una lista personal se puede **mover** a una familia de la que el dueño es miembro (y viceversa, por `owner`/`admin` de la familia).
+- **Invitación**: a una familia (con rol ofrecido) o a una lista (con permiso ofrecido), dirigida a un **email**.
+  - Si el email aún no tiene cuenta, la invitación queda esperando y aparece en su primer login.
+  - Estados: `pending`, `accepted`, `declined`, `revoked`, `expired`. Vencen a los 7 días.
+  - No se puede invitar a quien ya es miembro; reinvitar reemplaza la pendiente.
+
+### Matriz de permisos sobre una lista
+
+`listAccess(user, list)` devuelve el nivel más alto que aplique:
+
+| Condición | Nivel |
+|---|---|
+| `list.owner_user_id = user.id` | `owner` |
+| Lista de familia y usuario es `owner`/`admin` de esa familia | `owner` |
+| Lista de familia y usuario es `member` | `editor` |
+| Usuario está en `list_members` con `editor` | `editor` |
+| Usuario está en `list_members` con `viewer` | `viewer` |
+| Ninguna | `none` (responder 404, no 403, para no revelar existencia) |
+
+| Acción | viewer | editor | owner |
+|---|:-:|:-:|:-:|
+| Ver lista e ítems | ✓ | ✓ | ✓ |
+| Crear / editar / completar / reordenar / borrar ítems | | ✓ | ✓ |
+| Renombrar, ícono, color, tipo, orden por defecto | | | ✓ |
+| Compartir / quitar personas, invitar | | | ✓ |
+| Mover, archivar, borrar la lista | | | ✓ |
+| Dejar de ver una lista compartida conmigo | ✓ | ✓ | — |
+
+## 4. Modelo de datos (libSQL / Turso)
+
+```sql
+CREATE TABLE users (
+  id TEXT PRIMARY KEY,
+  google_sub TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL UNIQUE,           -- normalizado a minúsculas
+  name TEXT NOT NULL,
+  avatar_url TEXT,
+  color TEXT NOT NULL,                  -- para avatar/inicial
+  created_at TEXT NOT NULL,
+  last_login_at TEXT
+);
+
+CREATE TABLE sessions (
+  id TEXT PRIMARY KEY,                  -- sha256 del token de la cookie
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,             -- 60 días, renovación deslizante
+  last_seen_at TEXT NOT NULL,
+  user_agent TEXT
+);
+
+-- families: se mantiene; se agregan columnas
+ALTER TABLE families ADD COLUMN created_by TEXT REFERENCES users(id);
+ALTER TABLE families ADD COLUMN legacy_code_claimed_at TEXT;  -- migración
+
+CREATE TABLE family_members (
+  family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('owner','admin','member')),
+  joined_at TEXT NOT NULL,
+  PRIMARY KEY (family_id, user_id)
+);
+
+CREATE TABLE lists (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('shopping','tasks','checklist')),
+  icon TEXT NOT NULL DEFAULT 'list',
+  color TEXT NOT NULL DEFAULT 'green',
+  default_sort TEXT NOT NULL DEFAULT 'custom' CHECK (default_sort IN ('custom','alpha')),
+  created_by TEXT NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  archived_at TEXT,
+  CHECK ((owner_user_id IS NULL) <> (family_id IS NULL))
+);
+
+CREATE TABLE list_members (
+  list_id TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  permission TEXT NOT NULL CHECK (permission IN ('editor','viewer')),
+  added_by TEXT NOT NULL REFERENCES users(id),
+  added_at TEXT NOT NULL,
+  PRIMARY KEY (list_id, user_id)
+);
+
+CREATE TABLE user_list_prefs (          -- orden y visibilidad en el menú de cada usuario
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  list_id TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0,
+  sort_override TEXT,                   -- reemplaza el localStorage actual
+  PRIMARY KEY (user_id, list_id)
+);
+
+CREATE TABLE list_items (
+  id TEXT PRIMARY KEY,
+  list_id TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  completed INTEGER NOT NULL DEFAULT 0,
+  position INTEGER NOT NULL DEFAULT 0,
+  location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
+  assignee_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  legacy_assignee TEXT,                 -- "Matías"/"Francisca" hasta vincular
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  completed_at TEXT,
+  archived_at TEXT
+);
+CREATE INDEX idx_list_items_list ON list_items(list_id, completed, archived_at);
+
+CREATE TABLE invitations (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,      -- para el enlace /invitacion/:token
+  kind TEXT NOT NULL CHECK (kind IN ('family','list')),
+  family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+  list_id TEXT REFERENCES lists(id) ON DELETE CASCADE,
+  invited_email TEXT NOT NULL,          -- normalizado
+  offered_role TEXT NOT NULL,           -- admin|member (family) o editor|viewer (list)
+  invited_by TEXT NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','accepted','declined','revoked','expired')),
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  responded_at TEXT,
+  responded_by TEXT REFERENCES users(id),
+  CHECK ((kind = 'family' AND family_id IS NOT NULL AND list_id IS NULL)
+      OR (kind = 'list' AND list_id IS NOT NULL AND family_id IS NULL))
+);
+CREATE INDEX idx_invitations_email ON invitations(invited_email, status);
+```
+
+**Cambios en tablas existentes**
+
+- `locations`: agregar `owner_user_id` (nullable) y hacer `family_id` nullable, con el mismo CHECK XOR que `lists`. Una lista usa las ubicaciones de su dueño.
+- `learned_products`: pasar a clave `(scope_id, name_key)` donde `scope_id` es el `family_id` o `user:<id>`.
+- `calendar_entries`: se mantienen por familia; agregar `created_by`.
+- `shopping_items` y `household_tasks`: quedan de solo lectura tras la migración y se eliminan en una versión posterior.
+
+**Nota libSQL**: SQLite no permite quitar `NOT NULL` con `ALTER TABLE`; para `locations` y `learned_products` se hace el patrón "crear tabla nueva → copiar → renombrar" dentro de una transacción.
+
+## 5. Autenticación
+
+- **Flujo**: Google Identity Services en el cliente → obtiene `credential` (ID token) → `POST /api/auth/google` → el servidor verifica firma, `aud` = Client ID, `iss`, `exp` y `email_verified` (librería `google-auth-library`) → crea o actualiza `users` → crea `sessions` → responde con cookie.
+- **Cookie**: `sid`, httpOnly, `Secure` en producción, `SameSite=Lax`, `Path=/`, 60 días, renovación deslizante (si `last_seen_at` tiene más de 1 día).
+- **CSRF**: `SameSite=Lax` + la API solo acepta `application/json` + se verifica el header `Origin` en métodos de escritura.
+- **Middleware** `requireUser`: lee la cookie, busca la sesión por hash, adjunta `req.user`; si no hay sesión, 401.
+- **Límites**: rate limit en `/api/auth/*` (por IP), en la creación de invitaciones (por usuario/día) y en la aceptación por token.
+- **Logout**: borra la sesión actual. "Cerrar sesión en todos los dispositivos": borra todas las del usuario.
+- **Variables de entorno nuevas**: `GOOGLE_CLIENT_ID`, `SESSION_SECRET` (opcional, para firmar), `APP_ORIGIN`.
+- **Requisito externo**: proyecto en Google Cloud Console con credencial OAuth "Aplicación web"; orígenes autorizados `http://localhost:5173` y la URL de Render. Lo configura el dueño del proyecto.
+
+## 6. API
+
+Todas las rutas (salvo `/api/health` y `/api/auth/google`) requieren sesión. Los errores mantienen el formato actual `{ message }` en español.
+
+### Auth y usuario
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/auth/google` | Login con ID token de Google |
+| POST | `/api/auth/logout` | Cierra la sesión actual |
+| POST | `/api/auth/logout-all` | Cierra todas las sesiones |
+| GET | `/api/me` | Arranque: usuario, familias (con rol), listas visibles (metadata, prefs, nivel de acceso), invitaciones pendientes recibidas |
+| PATCH | `/api/me` | Nombre visible, color |
+
+### Listas
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/lists` | Crear (`{ id?, name, kind, icon, color, familyId? }`); sin `familyId` = personal |
+| GET | `/api/lists/:listId` | Metadata + ítems + miembros compartidos |
+| PATCH | `/api/lists/:listId` | Renombrar, ícono, color, orden por defecto, archivar/restaurar |
+| POST | `/api/lists/:listId/move` | `{ familyId \| null }` mover entre personal y familia |
+| DELETE | `/api/lists/:listId` | Borrar (owner) |
+| PUT | `/api/me/list-prefs` | Orden del menú, ocultar, orden preferido por lista |
+| DELETE | `/api/lists/:listId/members/me` | Dejar una lista compartida conmigo |
+| PATCH/DELETE | `/api/lists/:listId/members/:userId` | Cambiar permiso / quitar persona |
+
+### Ítems
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/lists/:listId/items` | Crear (id opcional para offline, idempotente) |
+| PATCH | `/api/lists/:listId/items/:itemId` | Título, completado, ubicación, responsable |
+| DELETE | `/api/lists/:listId/items/:itemId` | Borrar |
+| POST | `/api/lists/:listId/items/reorder` | `{ ids }` |
+| GET | `/api/lists/:listId/suggestions?q=` | Solo `shopping`: catálogo + productos aprendidos del dueño |
+
+### Familias
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/families` | Crear (el creador queda `owner`) |
+| GET | `/api/families/:id` | Metadata, miembros, ubicaciones |
+| PATCH | `/api/families/:id` | Renombrar (owner/admin) |
+| DELETE | `/api/families/:id` | Borrar (owner) |
+| PATCH | `/api/families/:id/members/:userId` | Cambiar rol (owner; admin no puede tocar owners) |
+| DELETE | `/api/families/:id/members/:userId` | Quitar miembro / salir (`me`) |
+| POST | `/api/families/:id/transfer` | Transferir propiedad |
+| CRUD | `/api/families/:id/locations` | Igual que hoy, con permisos |
+| CRUD | `/api/families/:id/calendar` | Igual que hoy, con permisos |
+| POST | `/api/families/claim` | `{ code }` reclamar familia antigua (migración) |
+
+### Invitaciones
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/families/:id/invitations` | `{ email, role }` → devuelve enlace |
+| POST | `/api/lists/:listId/invitations` | `{ email, permission }` → devuelve enlace |
+| GET | `/api/families/:id/invitations` · `/api/lists/:listId/invitations` | Pendientes enviadas (para revocar/reenviar) |
+| DELETE | `/api/invitations/:id` | Revocar (quien invita / owner) |
+| GET | `/api/invitations` | Recibidas pendientes |
+| GET | `/api/invitations/token/:token` | Vista previa por enlace (quién, a qué); requiere login |
+| POST | `/api/invitations/:id/accept` · `/decline` | Responder. Acepta si el email coincide; por enlace, el token también autoriza |
+
+**Regla del enlace**: el enlace lo puede aceptar cualquier usuario autenticado que lo tenga (útil si la persona usa otro email de Google), pero es de un solo uso y vence. Se muestra claramente a qué email iba dirigido.
+
+## 7. Tiempo real (Socket.IO)
+
+- El handshake lee la cookie `sid`; sin sesión válida se rechaza la conexión.
+- Al conectar, el servidor une el socket a: `user:<id>`, `family:<id>` por cada familia y `list:<id>` por cada lista compartida puntualmente.
+- Los cambios de membresía (aceptar, quitar, salir) actualizan las salas del socket del afectado en el servidor (`io.in("user:<id>").socketsJoin/Leave`).
+- Eventos (payloads pequeños, no la familia completa):
+  - `me:updated`: cambió algo del arranque (listas visibles, familias, invitaciones)
+  - `list:updated` `{ list }`: metadata
+  - `list:items` `{ listId, items }`: ítems de una lista
+  - `list:removed` `{ listId }`: perdiste acceso o se borró
+  - `family:updated` `{ family }`: miembros, ubicaciones
+  - `calendar:updated` `{ familyId, entries }`
+  - `invitation:received` / `invitation:updated`
+- Emisión: a `family:<id>` si la lista es de familia, más `list:<id>` y `user:<owner>` según corresponda.
+
+## 8. Cliente
+
+### Estructura (dividir `src/App.tsx`, hoy ~2400 líneas)
+```
+src/
+  main.tsx, router.tsx
+  api/            client.ts (fetch + ApiError), socket.ts
+  auth/           AuthProvider.tsx, LoginPage.tsx, useSession.ts
+  offline/        db.ts (idb), queue.ts
+  spaces/         SpaceSwitcher.tsx, Sidebar.tsx
+  lists/          ListPage.tsx, ListItemRow.tsx, NewListModal.tsx, ListSettings.tsx, ShareListModal.tsx
+  families/       FamilyPage.tsx, MembersPanel.tsx, InviteModal.tsx, ClaimFamily.tsx
+  invitations/    InvitationsInbox.tsx, InvitationLanding.tsx
+  calendar/       CalendarSection.tsx (movido tal cual)
+  components/     SwipeCard, SortChips, DragList, Modal…  (movidos tal cual)
+```
+
+### Rutas (`react-router`)
+| Ruta | Pantalla |
+|---|---|
+| `/login` | Botón "Entrar con Google" |
+| `/` | Redirige a la última lista abierta o al espacio personal |
+| `/personal` | Mis listas + "Compartidas conmigo" |
+| `/familias/:id` | Listas de la familia |
+| `/familias/:id/calendario` | Calendario de la familia |
+| `/familias/:id/ajustes` | Miembros, roles, invitaciones enviadas, ubicaciones |
+| `/listas/:id` | Una lista |
+| `/invitaciones` | Bandeja recibida |
+| `/invitacion/:token` | Aterrizaje de enlace (login si hace falta → aceptar/rechazar) |
+| `/cuenta` | Perfil, cerrar sesión, cerrar en todos lados |
+
+### Interfaz
+- **Selector de espacio** (header en escritorio, hoja inferior en móvil): Personal · Familia A · Familia B · "+ Crear familia".
+- **Sidebar** por espacio: listas ordenables (drag), badge de pendientes, "+ Nueva lista", y en familias "Calendario" y "Ajustes".
+- **Nueva lista**: nombre, tipo (compras / tareas / checklist), ícono, color, dueño (personal o una familia).
+- **Menú de lista**: renombrar, ícono/color, compartir, mover, archivar, borrar (con confirmación que indica cuántos ítems se pierden). "Archivadas" al final del sidebar.
+- **Compartir lista**: email + permiso, lista de personas con acceso, invitaciones pendientes revocables, copiar enlace.
+- **Bandeja de invitaciones**: campana con contador en el header; cada tarjeta muestra quién invita, a qué, el rol ofrecido, "Aceptar" / "Rechazar".
+- **Primer ingreso** sin nada: pantalla vacía con tres acciones: "Crear mi primera lista", "Crear una familia", "Tengo un código antiguo" (reclamar).
+- **Responsable** en tareas: selector con los miembros reales de la familia (o de la lista compartida); reemplaza los nombres fijos "Matías"/"Francisca".
+- Se reutilizan: swipe para editar/borrar, drag para reordenar, orden alfabético, sugerencias, capitalización, ubicaciones.
+
+### Offline
+- IndexedDB versión 2 (`casa-offline`):
+  - `session`: usuario y `/api/me` en caché
+  - `lists`: metadata + ítems por lista
+  - `outbox`: se agrega `userId`; la cola se procesa solo para el usuario activo
+- Funcionan offline: crear/editar/completar/reordenar/borrar ítems, crear listas personales (id generado en cliente).
+- Requieren conexión: login, invitaciones, gestión de miembros, mover listas, crear familias. Se muestra el botón deshabilitado con aviso.
+- Si la cola recibe 401: se pausa, se conserva, se pide login y se reanuda con el mismo usuario (si cambia de usuario, se descarta con aviso).
+- Si recibe 404 (se perdió acceso): se descarta la operación, como hoy.
+- Logout borra la caché y la cola del usuario en el dispositivo.
+
+## 9. Migración de datos actuales
+
+Se ejecuta en `initialize()` de forma idempotente (marcada con una tabla `migrations(name, applied_at)`).
+
+1. Crear tablas nuevas.
+2. Por cada familia existente:
+   - Crear lista `Compras` (`shopping`) y `Por hacer` (`tasks`) con `family_id`.
+   - Copiar `shopping_items` → `list_items` (mismo `id`, `position`, fechas, `location_id`).
+   - Copiar `household_tasks` → `list_items` con `legacy_assignee` = assignee de texto.
+   - `created_by` de las listas: usuario de sistema `system` hasta que se reclame.
+3. Pasar `locations` y `learned_products` al nuevo esquema.
+4. Familias sin `family_members` quedan **sin reclamar**.
+
+**Reclamar**: `POST /api/families/claim { code }`. Si la familia existe y no tiene miembros, el usuario queda `owner`, se marca `legacy_code_claimed_at` y el código deja de servir. Si ya fue reclamada, se responde "Esta familia ya tiene dueño; pide una invitación".
+
+**Vincular responsables**: en Ajustes de la familia, el owner ve los nombres antiguos ("Matías", "Francisca") y los asocia a miembros reales; se actualiza `assignee_user_id` y se limpia `legacy_assignee`.
+
+**Retiro del modelo antiguo**:
+- Durante las etapas 1–6 las rutas `/api/families/:id/items|tasks` antiguas siguen activas (para no romper producción).
+- En la etapa 7 se eliminan las rutas antiguas, el onboarding por código y `?familia=` en la URL.
+- Las tablas `shopping_items` y `household_tasks` se borran en una versión posterior, tras verificar la migración. Antes, respaldo de Turso (`turso db shell … .dump`).
+- La familia de prueba `CASA` deja de crearse automáticamente.
+
+## 10. Etapas
+
+Cada etapa: rama `feature/<nombre>`, PR propio, desplegable sin romper la anterior.
+
+### Etapa 0: Preparación
+- Dividir `App.tsx` según la estructura de §8 sin cambiar comportamiento.
+- Dividir `server/index.ts` en routers (`routes/items.ts`, `routes/tasks.ts`, …) y `HomeRepository` por dominio.
+- Agregar `react-router`.
+- Agregar `vitest` + `supertest`; base de datos libSQL en memoria (`file::memory:`) para tests.
+- Tests de humo de la API actual.
+- **Listo cuando**: la app se comporta igual y `npm test` pasa.
+
+### Etapa 1: Login con Google
+- Tablas `users`, `sessions`; `google-auth-library`; middleware `requireUser`.
+- `POST /api/auth/google`, `logout`, `logout-all`, `GET/PATCH /api/me`.
+- `LoginPage`, `AuthProvider`, guardas de ruta.
+- Socket autenticado por cookie.
+- Convivencia: tras login, si el usuario no tiene nada, se ofrece "Tengo un código antiguo" (usa aún el flujo viejo).
+- **Tests**: token inválido / aud incorrecto / email no verificado → 401; sesión vencida → 401; renovación deslizante.
+- **Listo cuando**: se puede entrar y salir con Google en local y en Render.
+
+### Etapa 2: Listas personales
+- Tablas `lists`, `list_items`, `user_list_prefs`; `listAccess()`.
+- API de listas e ítems (§6), reorder, archivado de completados por lista (misma regla actual: 5 últimos en 24 h).
+- UI: espacio Personal, sidebar dinámico, Nueva lista, ajustes de lista, `ListPage` genérica por tipo.
+- Ubicaciones y productos aprendidos personales.
+- Offline de listas personales.
+- **Tests**: matriz de permisos (§3) para owner/none; idempotencia con id del cliente; reorder solo de pendientes.
+- **Listo cuando**: un usuario sin familia usa listas de compras, tareas y checklist, incluso sin conexión.
+
+### Etapa 3: Familias
+- Tabla `family_members`; crear, renombrar, borrar, salir, transferir, roles.
+- Listas de familia; calendario y ubicaciones con permisos.
+- Selector de espacio; responsable = miembros reales.
+- **Tests**: miembro de familia A no ve nada de familia B; admin no puede quitar al owner; no se puede dejar la familia sin owner.
+- **Listo cuando**: un usuario pertenece a 2 familias con contenido independiente.
+
+### Etapa 4: Invitaciones
+- Tabla `invitations`; crear, listar, revocar, aceptar, rechazar, vencer (se marca `expired` al consultar).
+- Bandeja, campana con contador, `InvitationLanding` para `/invitacion/:token`.
+- Invitaciones a emails sin cuenta aparecen en el primer login.
+- Eventos socket `invitation:*` y reasignación de salas al aceptar.
+- **Tests**: aceptar dos veces; token vencido/revocado; invitar a quien ya es miembro; email con mayúsculas.
+- **Listo cuando**: se invita por email o enlace, y el invitado acepta o rechaza desde su bandeja.
+
+### Etapa 5: Compartir listas con personas puntuales
+- Tabla `list_members`; permisos `editor`/`viewer`; invitaciones tipo `list`.
+- Sección "Compartidas conmigo"; `ShareListModal`; dejar una lista compartida.
+- UI de solo lectura para `viewer` (sin swipe, sin formulario de agregar).
+- Mover listas entre personal y familia (conserva `list_members`).
+- **Tests**: viewer no puede escribir; quitar a alguien le emite `list:removed`; mover lista cambia quién la ve.
+- **Listo cuando**: una lista personal se comparte con alguien de fuera de la familia.
+
+### Etapa 6: Tiempo real y offline completos
+- Eventos granulares (§7) reemplazando `family:updated` con la familia completa.
+- IndexedDB v2, cola por usuario, manejo de 401/404, logout limpia datos.
+- **Listo cuando**: dos dispositivos con distintos usuarios ven solo lo suyo en tiempo real, y offline sigue funcionando como hoy.
+
+### Etapa 7: Migración y retiro del modelo antiguo
+- Script de migración (§9) probado primero contra una copia de la base de Turso.
+- Reclamar familia y vincular responsables antiguos.
+- Quitar onboarding por código, rutas antiguas, familia `CASA` automática.
+- Actualizar `README.md` y `render.yaml` (variables nuevas).
+- **Listo cuando**: los datos actuales están en listas nuevas, reclamados, y ya no se puede entrar solo con el código.
+
+## 11. Riesgos y mitigaciones
+
+| Riesgo | Mitigación |
+|---|---|
+| Filtrar listas personales por socket o `GET` | Toda respuesta y emisión pasa por `listAccess`; tests de "usuario ajeno ve 404 / no recibe evento" |
+| Perder datos en la migración | Respaldo previo, migración idempotente, tablas viejas conservadas, prueba contra copia |
+| Render free duerme el servidor | El login debe tolerar el primer request lento (spinner); sin cambios de hosting por ahora |
+| Cookie en PWA iOS (Safari) | Mismo origen para web y API (ya es así en producción); probar instalación en iPhone |
+| Cola offline de otro usuario en el mismo dispositivo | Outbox con `userId` y limpieza al cerrar sesión |
+| Complejidad de `App.tsx` | Etapa 0 dedicada a dividirlo antes de agregar funciones |
+| Abuso de invitaciones | Rate limit por usuario, vencimiento, un solo uso |
+
+## 12. Pendiente de definir más adelante
+
+- Notificaciones por email de invitaciones (Resend u otro).
+- Calendario personal y eventos compartidos con personas puntuales.
+- Plantillas de listas (por ejemplo "Compras semanales").
+- Historial / actividad por lista ("Francisca completó Leche").
+- Borrar la cuenta y exportar datos.
