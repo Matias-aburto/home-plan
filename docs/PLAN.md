@@ -1,6 +1,6 @@
 # Plan: cuentas, listas personalizadas y familias
 
-Estado: **planificación** (sin desarrollo iniciado).
+Estado: **en desarrollo**. Etapa 0A completada (producción en Vercel + Ably). Siguiente: Etapa 0.
 
 ## 1. Objetivo
 
@@ -359,7 +359,7 @@ Se ejecuta en `initialize()` de forma idempotente (marcada con una tabla `migrat
 
 Cada etapa: rama `feature/<nombre>`, PR propio, desplegable sin romper la anterior.
 
-### Etapa 0A: Migración a Vercel + Ably
+### Etapa 0A: Migración a Vercel + Ably ✅
 Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque tarda 30–60 s.
 - **API serverless**: separar `server/app.ts` (Express sin `listen`) de `server/index.ts` (servidor local). `api/index.ts` exporta `app` para Vercel.
 - **Migraciones fuera del arranque**: `initialize()` pasa a `npm run db:migrate` (script idempotente), que se ejecuta en el build de Vercel. En las funciones solo se abre el cliente de Turso.
@@ -368,6 +368,7 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - **Desarrollo local**: se mantiene `npm run dev` (Express + Vite); sin `ABLY_API_KEY` el tiempo real queda desactivado sin romper nada.
 - **Variables de entorno**: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ABLY_API_KEY`.
 - Se eliminan `socket.io`, `socket.io-client` y `render.yaml` (tras verificar Vercel).
+- En previews sin `TURSO_DATABASE_URL` el build omite las migraciones (`server/init-database.ts`).
 - **Requisito externo**: cuenta de Vercel conectada al repo de GitHub y app de Ably con una API key (permisos publish + subscribe).
 - **Listo cuando**: la app corre en Vercel sin cold start perceptible, dos dispositivos se sincronizan en tiempo real y el modo offline sigue funcionando.
 
