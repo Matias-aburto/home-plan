@@ -1,17 +1,5 @@
 import type { QueuedOperation } from "./offline";
 
-export type ShoppingItem = {
-  id: string;
-  name: string;
-  locationId: string | null;
-  completed: boolean;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
-  completedAt: string | null;
-  archivedAt: string | null;
-};
-
 export type Location = {
   id: string;
   name: string;
@@ -20,21 +8,6 @@ export type Location = {
 export type Suggestion = {
   name: string;
   category: string;
-};
-
-export type Assignee = "Matías" | "Francisca";
-
-export type HouseholdTask = {
-  id: string;
-  title: string;
-  assignee: Assignee | null;
-  locationId: string | null;
-  completed: boolean;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
-  completedAt: string | null;
-  archivedAt: string | null;
 };
 
 export type CalendarEntry = {
@@ -49,22 +22,39 @@ export type CalendarEntry = {
   updatedAt: string;
 };
 
-export type Family = {
-  id: string;
-  name: string;
-  createdAt: string;
-  locations: Location[];
-  items: ShoppingItem[];
-  tasks: HouseholdTask[];
-  calendarEntries: CalendarEntry[];
-};
-
 export type User = {
   id: string;
   email: string;
   name: string;
   avatarUrl: string | null;
   color: string;
+};
+
+export type FamilyRole = "owner" | "admin" | "member";
+
+export type FamilySummary = {
+  id: string;
+  name: string;
+  createdAt: string;
+  role: FamilyRole;
+  memberCount: number;
+};
+
+export type FamilyMember = {
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  color: string;
+  role: FamilyRole;
+  joinedAt: string;
+};
+
+export type FamilyDetail = {
+  family: FamilySummary;
+  members: FamilyMember[];
+  locations: Location[];
+  legacyAssignees: { name: string; count: number }[];
 };
 
 export type ListKind = "shopping" | "tasks" | "checklist";
@@ -95,6 +85,8 @@ export type ListItem = {
   position: number;
   locationId: string | null;
   assigneeUserId: string | null;
+  // Nombre del responsable en el modelo anterior, hasta vincularlo a un miembro.
+  legacyAssignee: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -102,18 +94,22 @@ export type ListItem = {
   archivedAt: string | null;
 };
 
+// Quienes pueden ser responsables de una tarea (miembros de la familia de la lista).
+export type Assignable = Pick<FamilyMember, "userId" | "name" | "color" | "avatarUrl">;
+
 export type ListDetail = {
   list: ListSummary;
   items: ListItem[];
   locations: Location[];
+  members: Assignable[];
 };
 
 export type Me = {
   user: User;
+  families: FamilySummary[];
   lists: ListSummary[];
 };
 
-export type View = "welcome" | "create" | "join";
 export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId" | "listId">;
 export type SortMode = "custom" | "alpha";
 

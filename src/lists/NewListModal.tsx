@@ -6,8 +6,9 @@ import type { ListKind } from "../types";
 import { ListAppearanceFields } from "./ListAppearanceFields";
 import { ListIcon, listKinds } from "./listStyle";
 
-export function NewListModal({ onClose }: { onClose: () => void }) {
-  const { createList } = useMe();
+export function NewListModal({ familyId = null, onClose }: { familyId?: string | null; onClose: () => void }) {
+  const { createList, families } = useMe();
+  const family = families.find(({ id }) => id === familyId);
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [kind, setKind] = useState<ListKind>("shopping");
@@ -27,7 +28,7 @@ export function NewListModal({ onClose }: { onClose: () => void }) {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const id = await createList({ name: name.trim(), kind, icon, color });
+      const id = await createList({ name: name.trim(), kind, icon, color }, familyId);
       onClose();
       navigate(`/listas/${id}`);
     } finally {
@@ -39,7 +40,10 @@ export function NewListModal({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onMouseDown={onClose}>
       <section className="entry-edit-modal list-modal animate-in" onMouseDown={(event) => event.stopPropagation()}>
         <header>
-          <h2>Nueva lista</h2>
+          <div>
+            {family && <div className="eyebrow">{family.name}</div>}
+            <h2>Nueva lista</h2>
+          </div>
           <button onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
         </header>
         <form onSubmit={submit}>

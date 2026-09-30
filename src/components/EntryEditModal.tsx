@@ -1,29 +1,35 @@
 import { useState, type FormEvent } from "react";
 import { House, MapPin, UserRound, X } from "lucide-react";
-import type { Assignee, Location } from "../types";
+import type { Assignable, Location } from "../types";
 
 export function EntryEditModal({
   title,
   value,
   locationId,
-  assignee = null,
+  assigneeId = null,
+  legacyAssignee = null,
   locations,
-  showAssignee = false,
+  assignees = [],
   onSave,
   onClose
 }: {
   title: string;
   value: string;
   locationId: string | null;
-  assignee?: Assignee | null;
+  assigneeId?: string | null;
+  // Responsable escrito a mano en el modelo anterior; se muestra hasta elegir un miembro.
+  legacyAssignee?: string | null;
   locations: Location[];
-  showAssignee?: boolean;
-  onSave: (value: string, locationId: string | null, assignee: Assignee | null) => Promise<void>;
+  // Vacío: la lista no usa responsables.
+  assignees?: Assignable[];
+  onSave: (value: string, locationId: string | null, assigneeId: string | null | undefined) => Promise<void>;
   onClose: () => void;
 }) {
   const [nextValue, setNextValue] = useState(value);
   const [nextLocationId, setNextLocationId] = useState(locationId || "");
-  const [nextAssignee, setNextAssignee] = useState<Assignee | null>(assignee);
+  // undefined: no se tocó (conserva el responsable anterior, incluido el del modelo antiguo).
+  const [nextAssignee, setNextAssignee] = useState<string | null | undefined>(undefined);
+  const shownAssignee = nextAssignee === undefined ? assigneeId : nextAssignee;
   const [saving, setSaving] = useState(false);
 
   async function submit(event: FormEvent) {
@@ -73,21 +79,28 @@ export function EntryEditModal({
               </div>
             </fieldset>
           )}
-          {showAssignee && (
+          {assignees.length > 0 && (
             <fieldset>
               <legend>Asignar a</legend>
+              {legacyAssignee && nextAssignee === undefined && (
+                <p className="legacy-assignee-note">Antes: {legacyAssignee}</p>
+              )}
               <div className="edit-option-chips">
-                <button type="button" className={!nextAssignee ? "selected" : ""} onClick={() => setNextAssignee(null)}>
+                <button
+                  type="button"
+                  className={!shownAssignee && (nextAssignee !== undefined || !legacyAssignee) ? "selected" : ""}
+                  onClick={() => setNextAssignee(null)}
+                >
                   Sin asignar
                 </button>
-                {(["Matías", "Francisca"] as Assignee[]).map((member) => (
+                {assignees.map((member) => (
                   <button
                     type="button"
-                    key={member}
-                    className={nextAssignee === member ? "selected" : ""}
-                    onClick={() => setNextAssignee(member)}
+                    key={member.userId}
+                    className={shownAssignee === member.userId ? "selected" : ""}
+                    onClick={() => setNextAssignee(member.userId)}
                   >
-                    <UserRound size={14} /> {member}
+                    <UserRound size={14} /> {member.name}
                   </button>
                 ))}
               </div>

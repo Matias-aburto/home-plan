@@ -11,7 +11,7 @@ const Context = createContext<Connection>({ online: true, connected: false, pend
 
 // Mantiene la cola offline enviándose y escucha a Ably. Ably solo avisa qué cambió;
 // cada vista vuelve a pedir sus datos a la API al recibir el evento correspondiente.
-export function ConnectionProvider({ user, familyId, children }: { user: User; familyId: string; children: ReactNode }) {
+export function ConnectionProvider({ user, familyIds, children }: { user: User; familyIds: string[]; children: ReactNode }) {
   const [online, setOnline] = useState(navigator.onLine);
   const [connected, setConnected] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -37,6 +37,9 @@ export function ConnectionProvider({ user, familyId, children }: { user: User; f
     };
   }, []);
 
+  // El token incluye los canales de las familias actuales: si cambian, se reconecta.
+  const familyKey = familyIds.join(",");
+
   useEffect(() => {
     let client: Realtime | null = null;
     let started = false;
@@ -58,8 +61,7 @@ export function ConnectionProvider({ user, familyId, children }: { user: User; f
       }
       const Ably = await import("ably");
       if (cancelled) return;
-      const tokenUrl = `/api/realtime/token${familyId ? `?family=${encodeURIComponent(familyId)}` : ""}`;
-      client = new Ably.Realtime({ authUrl: tokenUrl });
+      client = new Ably.Realtime({ authUrl: "/api/realtime/token" });
       let firstConnection = true;
       client.connection.on((change) => {
         const isConnected = change.current === "connected";
@@ -74,9 +76,12 @@ export function ConnectionProvider({ user, familyId, children }: { user: User; f
       void client.channels.get(`user:${user.id}`).subscribe("me:changed", (message) => {
         emitSyncEvent(syncEvents.meChanged, message.data ?? {});
       });
-      if (familyId) {
-        void client.channels.get(`family:${familyId.toUpperCase()}`).subscribe("family:changed", () => {
-          emitSyncEvent(syncEvents.familyChanged);
+      for (const familyId of familyKey ? familyKey.split(",") : []) {
+        void client.channels.get(`family:${familyId}`).subscribe("family:changed", (message) => {
+          const data = (message.data ?? {}) as { listId?: string; calendar?: boolean };
+          // Con listId es un cambio en una lista; sin él, del calendario o de la familia (miembros, nombre).
+          if (data.listId) emitSyncEvent(syncEvents.meChanged, { listId: data.listId });
+          else emitSyncEvent(syncEvents.familyChanged, { familyId, calendar: Boolean(data.calendar) });
         });
       }
     }
@@ -89,7 +94,7 @@ export function ConnectionProvider({ user, familyId, children }: { user: User; f
       window.removeEventListener("online", onOnline);
       client?.close();
     };
-  }, [user.id, familyId]);
+  }, [user.id, familyKey]);
 
   const value = useMemo(() => ({ online, connected, pendingCount }), [online, connected, pendingCount]);
   return <Context.Provider value={value}>{children}</Context.Provider>;

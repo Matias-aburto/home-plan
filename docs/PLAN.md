@@ -431,6 +431,17 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - Selector de espacio; responsable = miembros reales.
 - **Tests**: miembro de familia A no ve nada de familia B; admin no puede quitar al owner; no se puede dejar la familia sin owner.
 - **Listo cuando**: un usuario pertenece a 2 familias con contenido independiente.
+- **Resultado** (rama `feature/etapa-3-familias`), incluye la migración y el reclamo de la Etapa 7:
+  - `family_members` con un único `owner` (se cambia con `POST /transfer`), `admin` y `member`. `requireMember(rol)` responde 404 a quien no es miembro.
+  - Permisos: owner/admin → `owner` de las listas de la familia; member → `editor`. Ubicaciones: las gestiona cualquier editor.
+  - Responsables: `assignee_user_id` debe ser miembro de la familia y solo aplica a listas de tareas. Al salir alguien, sus tareas quedan sin asignar.
+  - Migración idempotente por familia (`families.lists_migrated_at`): `locations` → `places`, `shopping_items` → lista "Compras", `household_tasks` → "Por hacer" (con `legacy_assignee`), `learned_products` → `learned_names`. Mismos ids. Autor: usuario de sistema `system`. Las tablas antiguas quedan como respaldo.
+  - Reclamo: `POST /api/families/claim { code }` (una sola vez). Enlaces antiguos `?familia=CODIGO` llevan a `/familias/nueva?codigo=`.
+  - Vincular responsables antiguos: `POST /api/families/:id/legacy-assignees`.
+  - Se eliminaron las rutas antiguas (`/api/families/:id/items|tasks|locations|suggestions` y la carga de la familia completa) y la familia `CASA` automática.
+  - Tiempo real: el token incluye `family:<id>` de todas las familias del usuario; los cambios de listas de familia avisan en el canal de la familia.
+  - Cliente: rutas `/familias/nueva`, `/familias/:id`, `/familias/:id/calendario`, `/familias/:id/ajustes`. Menú con un bloque por espacio (Mis listas y cada familia). Tareas de familia con responsable (formulario, filtros, edición).
+  - Pendiente para la Etapa 4: invitar personas (hoy solo se entra a una familia creándola o reclamándola).
 
 ### Etapa 4: Invitaciones
 - Tabla `invitations`; crear, listar, revocar, aceptar, rechazar, vencer (se marca `expired` al consultar).

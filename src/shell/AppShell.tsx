@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Copy, Download, House, Menu, Plus, Share2, X } from "lucide-react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
-import { AccountMenu } from "../components/AccountMenu";
+import { Download, House, Menu, Plus, X } from "lucide-react";
+import { Link, Outlet, useLocation } from "react-router";
+import { AccountMenu, UserAvatar } from "../components/AccountMenu";
 import { useConnection } from "../data/ConnectionProvider";
-import { useLegacyFamily } from "../family/LegacyFamilyProvider";
+import { useFamilyDetail } from "../family/useFamilyDetail";
 import { NewListModal } from "../lists/NewListModal";
 import type { User } from "../types";
 import { NavContent } from "./NavContent";
@@ -23,49 +23,30 @@ export function AppShell({
   onLogout: (everywhere?: boolean) => Promise<void>;
 }) {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const { online, connected, pendingCount } = useConnection();
-  const legacy = useLegacyFamily();
-  const { space, activeKey, personal, familyEntries } = useNavigation();
+  const { activeSpace, activeKey } = useNavigation();
+  const { detail: familyDetail } = useFamilyDetail(activeSpace.familyId);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [creatingList, setCreatingList] = useState(false);
-  const [shareLabel, setShareLabel] = useState("Compartir");
-  const family = space === "family" ? legacy.family : null;
+  // undefined: cerrado; null: lista personal; string: lista de esa familia.
+  const [newListFamily, setNewListFamily] = useState<string | null | undefined>(undefined);
 
   // Al volver a abrir la app se retoma la última lista o sección.
   useEffect(() => {
-    if (pathname.startsWith("/listas/") || pathname.startsWith("/familia")) localStorage.setItem(lastPathKey, pathname);
+    if (pathname.startsWith("/listas/") || pathname.startsWith("/familias/")) localStorage.setItem(lastPathKey, pathname);
   }, [pathname]);
 
-  async function shareFamily() {
-    if (!family) return;
-    const url = `${window.location.origin}/familia?familia=${family.id}`;
-    const message = `Únete a ${family.name} en Casa. Código: ${family.id}`;
-    if (navigator.share) {
-      await navigator.share({ title: family.name, text: message, url }).catch(() => undefined);
-      return;
-    }
-    await navigator.clipboard.writeText(`${message}\n${url}`);
-    setShareLabel("Copiado");
-    window.setTimeout(() => setShareLabel("Compartir"), 1800);
-  }
-
-  function leaveFamily() {
-    legacy.leave();
-    navigate("/", { replace: true });
-  }
-
   // En móvil la barra inferior muestra las primeras entradas del espacio actual y el menú completo.
-  const barEntries = (space === "family" ? familyEntries : personal).slice(0, 3);
+  const barEntries = [...activeSpace.lists, ...activeSpace.links.slice(0, 1)].slice(0, 3);
+  const members = familyDetail?.members ?? [];
 
   return (
     <main className="app-shell">
       <header className="app-header">
-        <Link className="family-identity" to="/">
+        <Link className="family-identity" to={activeSpace.to}>
           <div className="small-brand-mark"><House size={21} /></div>
           <div>
             <span>Casa</span>
-            <h1>{family ? family.name : "Mis listas"}</h1>
+            <h1>{activeSpace.title}</h1>
           </div>
         </Link>
         <div className="header-actions">
@@ -75,11 +56,20 @@ export function AppShell({
               <span>Instalar</span>
             </button>
           )}
-          {family && (
-            <div className="member-avatars" aria-label="Miembros: Matías y Francisca">
-              <span className="avatar-matias" title="Matías">M</span>
-              <span className="avatar-francisca" title="Francisca">F</span>
-            </div>
+          {activeSpace.familyId && members.length > 0 && (
+            <Link
+              className="member-avatars"
+              to={`/familias/${activeSpace.familyId}/ajustes`}
+              aria-label={`Miembros: ${members.map(({ name }) => name).join(", ")}`}
+            >
+              {members.slice(0, 3).map((member) => (
+                <UserAvatar
+                  key={member.userId}
+                  user={{ id: member.userId, name: member.name, email: member.email, avatarUrl: member.avatarUrl, color: member.color }}
+                />
+              ))}
+              {members.length > 3 && <span className="more-members">+{members.length - 3}</span>}
+            </Link>
           )}
           <span className={`connection-status ${connected && online && pendingCount === 0 ? "online" : ""} ${!online || pendingCount ? "attention" : ""}`}>
             <i />
@@ -89,19 +79,13 @@ export function AppShell({
                 ? `Sincronizando · ${pendingCount}`
                 : connected ? "Sincronizado" : "Reconectando"}
           </span>
-          {family && (
-            <button className="share-button" onClick={shareFamily}>
-              {shareLabel === "Copiado" ? <Copy size={17} /> : <Share2 size={17} />}
-              <span>{shareLabel}</span>
-            </button>
-          )}
-          <AccountMenu user={user} onLogout={onLogout} onLeaveFamily={legacy.family ? leaveFamily : undefined} />
+          <AccountMenu user={user} onLogout={onLogout} />
         </div>
       </header>
 
       <div className="dashboard">
         <aside className="sidebar">
-          <NavContent onNewList={() => setCreatingList(true)} />
+          <NavContent onNewList={setNewListFamily} />
         </aside>
         <Outlet />
       </div>
@@ -119,8 +103,8 @@ export function AppShell({
             {Boolean(entry.badge) && <b>{entry.badge}</b>}
           </Link>
         ))}
-        {space === "personal" && barEntries.length < 3 && (
-          <button className="nav-item" onClick={() => setCreatingList(true)}>
+        {barEntries.length < 3 && (
+          <button className="nav-item" onClick={() => setNewListFamily(activeSpace.familyId)}>
             <Plus size={20} />
             <span>Nueva lista</span>
           </button>
@@ -140,15 +124,17 @@ export function AppShell({
             </header>
             <NavContent
               onNavigate={() => setDrawerOpen(false)}
-              onNewList={() => {
+              onNewList={(familyId) => {
                 setDrawerOpen(false);
-                setCreatingList(true);
+                setNewListFamily(familyId);
               }}
             />
           </section>
         </div>
       )}
-      {creatingList && <NewListModal onClose={() => setCreatingList(false)} />}
+      {newListFamily !== undefined && (
+        <NewListModal familyId={newListFamily} onClose={() => setNewListFamily(undefined)} />
+      )}
     </main>
   );
 }

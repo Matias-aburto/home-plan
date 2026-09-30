@@ -9,7 +9,7 @@ export const syncEvents = {
   pending: "casa:pending",
   // Ably avisó cambios del usuario (detail: { listId? }).
   meChanged: "casa:me-changed",
-  // Ably avisó cambios de la familia antigua.
+  // Ably avisó cambios en una familia (detail: { familyId, calendar }).
   familyChanged: "casa:family-changed",
   // Se recuperó la conexión: todo lo visible debe recargarse.
   resync: "casa:resync"

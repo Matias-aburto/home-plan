@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import { cacheMeta, getCachedMeta, getPendingOperations } from "../offline";
-import type { ListKind, ListSummary, Me, User } from "../types";
+import type { FamilySummary, ListKind, ListSummary, Me, User } from "../types";
 import { mutate, onSyncEvent, syncEvents } from "./sync";
 
 export type NewListInput = { name: string; kind: ListKind; icon: string; color: string };
@@ -9,9 +9,13 @@ type ListChanges = Partial<Pick<ListSummary, "name" | "icon" | "color">> & { arc
 
 type MeContext = {
   lists: ListSummary[];
+  families: FamilySummary[];
   loaded: boolean;
   refresh: () => Promise<void>;
-  createList: (input: NewListInput) => Promise<string>;
+  // Requieren conexión: el servidor crea el id de la familia o valida el código.
+  createFamily: (name: string) => Promise<FamilySummary>;
+  claimFamily: (code: string) => Promise<FamilySummary>;
+  createList: (input: NewListInput, familyId?: string | null) => Promise<string>;
   updateList: (listId: string, changes: ListChanges) => Promise<void>;
   deleteList: (listId: string) => Promise<void>;
   reorderLists: (ids: string[]) => Promise<void>;
@@ -24,13 +28,18 @@ const cacheKey = "me";
 
 export function MeProvider({ user, children }: { user: User; children: ReactNode }) {
   const [lists, setLists] = useState<ListSummary[]>([]);
+  const [families, setFamilies] = useState<FamilySummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const listsRef = useRef(lists);
   listsRef.current = lists;
+  const familiesRef = useRef(families);
+  familiesRef.current = families;
 
-  const store = useCallback((next: ListSummary[]) => {
+  const store = useCallback((next: ListSummary[], nextFamilies = familiesRef.current) => {
     setLists(next);
-    void cacheMeta(cacheKey, { user, lists: next } satisfies Me);
+    setFamilies(nextFamilies);
+    familiesRef.current = nextFamilies;
+    void cacheMeta(cacheKey, { user, families: nextFamilies, lists: next } satisfies Me);
   }, [user]);
 
   // No pisa cambios locales que todavía no llegan al servidor.
@@ -38,7 +47,7 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
     if ((await getPendingOperations()).length > 0) return;
     try {
       const me = await api<Me>("/api/me");
-      store(me.lists);
+      store(me.lists, me.families);
     } catch {
       // Sin conexión se mantiene lo que había.
     } finally {
@@ -50,6 +59,7 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
     void getCachedMeta<Me>(cacheKey).then((cached) => {
       if (cached && cached.user.id === user.id) {
         setLists(cached.lists);
+        setFamilies(cached.families ?? []);
         setLoaded(true);
       }
     });
@@ -58,24 +68,47 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
 
   useEffect(() => {
     const offMe = onSyncEvent(syncEvents.meChanged, () => void refresh());
+    const offFamily = onSyncEvent<{ calendar?: boolean }>(syncEvents.familyChanged, (data) => {
+      if (!data?.calendar) void refresh();
+    });
     const offSynced = onSyncEvent(syncEvents.synced, () => void refresh());
     const offResync = onSyncEvent(syncEvents.resync, () => void refresh());
     return () => {
       offMe();
+      offFamily();
       offSynced();
       offResync();
     };
   }, [refresh]);
 
-  const createList = useCallback(async (input: NewListInput) => {
+  const forceRefresh = useCallback(async () => {
+    const me = await api<Me>("/api/me");
+    store(me.lists, me.families);
+  }, [store]);
+
+  const createFamily = useCallback(async (name: string) => {
+    const family = await api<FamilySummary>("/api/families", { method: "POST", body: JSON.stringify({ name }) });
+    await forceRefresh();
+    return family;
+  }, [forceRefresh]);
+
+  const claimFamily = useCallback(async (code: string) => {
+    const family = await api<FamilySummary>("/api/families/claim", { method: "POST", body: JSON.stringify({ code }) });
+    await forceRefresh();
+    return family;
+  }, [forceRefresh]);
+
+  const createList = useCallback(async (input: NewListInput, familyId: string | null = null) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const position = listsRef.current.reduce((max, list) => Math.max(max, list.position + 1), 0);
+    const role = familyId ? familiesRef.current.find((family) => family.id === familyId)?.role : null;
     store([...listsRef.current, {
-      id, ownerUserId: user.id, familyId: null, ...input, createdBy: user.id, createdAt: now, updatedAt: now,
-      archivedAt: null, access: "owner", position, sort: "custom", pendingCount: 0
+      id, ownerUserId: familyId ? null : user.id, familyId, ...input, createdBy: user.id, createdAt: now, updatedAt: now,
+      archivedAt: null, access: !familyId || role === "owner" || role === "admin" ? "owner" : "editor",
+      position, sort: "custom", pendingCount: 0
     }]);
-    await mutate({ url: "/api/lists", method: "POST", body: { id, ...input }, listId: id });
+    await mutate({ url: "/api/lists", method: "POST", body: { id, ...input, familyId }, listId: id });
     return id;
   }, [store, user.id]);
 
@@ -109,8 +142,10 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
   }, [store]);
 
   const value = useMemo(
-    () => ({ lists, loaded, refresh, createList, updateList, deleteList, reorderLists, patchListLocally }),
-    [lists, loaded, refresh, createList, updateList, deleteList, reorderLists, patchListLocally]
+    () => ({
+      lists, families, loaded, refresh, createFamily, claimFamily, createList, updateList, deleteList, reorderLists, patchListLocally
+    }),
+    [lists, families, loaded, refresh, createFamily, claimFamily, createList, updateList, deleteList, reorderLists, patchListLocally]
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

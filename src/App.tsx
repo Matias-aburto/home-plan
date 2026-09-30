@@ -1,13 +1,14 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Navigate, Route, Routes, useLocation } from "react-router";
 import { useSession } from "./auth/AuthProvider";
 import { LoginPage } from "./auth/LoginPage";
 import { IosInstallGuide } from "./components/IosInstallGuide";
 import { Loading } from "./components/Loading";
 import { ConnectionProvider } from "./data/ConnectionProvider";
-import { MeProvider } from "./data/MeProvider";
-import { FamilyPage } from "./family/FamilyPage";
-import { JoinFamilyPage } from "./family/JoinFamilyPage";
-import { LegacyFamilyProvider, useLegacyFamily } from "./family/LegacyFamilyProvider";
+import { MeProvider, useMe } from "./data/MeProvider";
+import { FamilyCalendarRoute } from "./family/FamilyCalendarPage";
+import { FamilyHomePage } from "./family/FamilyHomePage";
+import { FamilySettingsRoute } from "./family/FamilySettingsPage";
+import { NewFamilyPage } from "./family/NewFamilyPage";
 import { useInstallApp } from "./hooks/useInstallApp";
 import { ListRoute } from "./lists/ListPage";
 import { PersonalHome } from "./lists/PersonalHome";
@@ -27,9 +28,7 @@ export default function App() {
     // La key reinicia todo el estado si entra otra cuenta.
     screen = (
       <MeProvider key={session.user.id} user={session.user}>
-        <LegacyFamilyProvider>
-          <SignedInApp user={session.user} installApp={installApp} onLogout={session.logout} />
-        </LegacyFamilyProvider>
+        <SignedInApp user={session.user} installApp={installApp} onLogout={session.logout} />
       </MeProvider>
     );
   }
@@ -51,21 +50,30 @@ function SignedInApp({
   installApp: ReturnType<typeof useInstallApp>;
   onLogout: (everywhere?: boolean) => Promise<void>;
 }) {
-  const { familyId } = useLegacyFamily();
+  const { families } = useMe();
   const install = { canInstall: installApp.canInstall, onInstall: installApp.install };
 
   return (
-    <ConnectionProvider user={user} familyId={familyId}>
+    <ConnectionProvider user={user} familyIds={families.map(({ id }) => id)}>
       <Routes>
-        <Route path="familia/unirse" element={<JoinFamilyPage user={user} {...install} onLogout={onLogout} />} />
+        <Route path="familias/nueva" element={<NewFamilyPage user={user} {...install} onLogout={onLogout} />} />
         <Route element={<AppShell user={user} {...install} onLogout={onLogout} />}>
           <Route index element={<HomeRedirect />} />
           <Route path="personal" element={<PersonalHome />} />
           <Route path="listas/:listId" element={<ListRoute />} />
-          <Route path="familia/*" element={<FamilyPage />} />
+          <Route path="familias/:familyId" element={<FamilyHomePage />} />
+          <Route path="familias/:familyId/calendario" element={<FamilyCalendarRoute />} />
+          <Route path="familias/:familyId/ajustes" element={<FamilySettingsRoute />} />
+          <Route path="familia/*" element={<LegacyFamilyRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </ConnectionProvider>
   );
+}
+
+// Rutas del modelo anterior (/familia...): se conserva ?familia=CODIGO para ofrecer recuperarla.
+function LegacyFamilyRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: "/", search }} replace />;
 }

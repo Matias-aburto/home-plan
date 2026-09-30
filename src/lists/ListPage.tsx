@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArchiveRestore, Check, CircleAlert, House, MapPin, Plus, Settings2 } from "lucide-react";
+import { ArchiveRestore, Check, CircleAlert, House, MapPin, Plus, Settings2, UserRound, Users } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError, api } from "../api/client";
 import { EntryEditModal } from "../components/EntryEditModal";
@@ -111,7 +111,7 @@ function ListPage({ listId }: { listId: string }) {
   const summary = me.lists.find((list) => list.id === listId);
   useEffect(() => {
     if (!detail && status === "offline" && summary) {
-      setDetail({ list: summary, items: [], locations: [] });
+      setDetail({ list: summary, items: [], locations: [], members: [] });
       setStatus("ready");
     }
   }, [detail, status, summary]);
@@ -147,13 +147,17 @@ function ListContent({
   onReload: () => Promise<void>;
 }) {
   const { list, items, locations } = detail;
+  const members = detail.members ?? [];
   const me = useMe();
   const text = copy[list.kind];
   const readOnly = list.access === "viewer";
   const usesLocations = list.kind !== "checklist";
+  // Las tareas de una familia se pueden asignar a sus miembros; ahí los filtros son por responsable.
+  const usesAssignees = list.kind === "tasks" && Boolean(list.familyId) && members.length > 0;
   const locationKey = `location:list:${list.id}`;
   const [title, setTitle] = useState("");
   const [locationId, setLocationId] = useState(() => localStorage.getItem(locationKey) || "");
+  const [assigneeId, setAssigneeId] = useState("");
   const [filter, setFilter] = useState("all");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -164,10 +168,13 @@ function ListContent({
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const visibleItems = useMemo(
-    () => items.filter((item) =>
-      !item.archivedAt && (filter === "all" || (filter === "none" ? !item.locationId : item.locationId === filter))
-    ),
-    [items, filter]
+    () => items.filter((item) => {
+      if (item.archivedAt) return false;
+      if (filter === "all") return true;
+      const value = usesAssignees ? item.assigneeUserId : item.locationId;
+      return filter === "none" ? !value : value === filter;
+    }),
+    [items, filter, usesAssignees]
   );
   const pendingItems = useMemo(
     () => sortPending(visibleItems.filter((item) => !item.completed), list.sort, (item) => item.title),
@@ -178,6 +185,9 @@ function ListContent({
     [visibleItems]
   );
   const selectedLocation = locations.find(({ id }) => id === locationId);
+  const selectedAssignee = members.find(({ userId }) => userId === assigneeId);
+  const assigneeName = (item: ListItem) =>
+    members.find(({ userId }) => userId === item.assigneeUserId)?.name ?? item.legacyAssignee;
 
   useEffect(() => {
     if (list.kind !== "shopping" || title.trim().length < 2) {
@@ -203,8 +213,10 @@ function ListContent({
       setLocationId("");
       localStorage.removeItem(locationKey);
     }
-    if (filter !== "all" && filter !== "none" && !locations.some(({ id }) => id === filter)) setFilter("all");
-  }, [locations, filter, locationId, locationKey]);
+    if (assigneeId && !members.some(({ userId }) => userId === assigneeId)) setAssigneeId("");
+    const options = usesAssignees ? members.map(({ userId }) => userId) : locations.map(({ id }) => id);
+    if (filter !== "all" && filter !== "none" && !options.includes(filter)) setFilter("all");
+  }, [locations, members, usesAssignees, filter, locationId, assigneeId, locationKey]);
 
   async function apply(nextItems: ListItem[], operation: OfflineMutation) {
     const next = { ...detail, items: nextItems };
@@ -226,7 +238,8 @@ function ListContent({
         completed: false,
         position: nextListPosition(items),
         locationId: usesLocations ? locationId || null : null,
-        assigneeUserId: null,
+        assigneeUserId: usesAssignees ? assigneeId || null : null,
+        legacyAssignee: null,
         createdBy: list.ownerUserId,
         createdAt: now,
         updatedAt: now,
@@ -236,7 +249,7 @@ function ListContent({
       await apply([item, ...items], {
         url: `/api/lists/${list.id}/items`,
         method: "POST",
-        body: { id: item.id, title: item.title, locationId: item.locationId }
+        body: { id: item.id, title: item.title, locationId: item.locationId, assigneeUserId: item.assigneeUserId }
       });
       setTitle("");
       setSuggestions([]);
@@ -264,17 +277,25 @@ function ListContent({
     });
   }
 
-  async function editItem(item: ListItem, nextTitle: string, nextLocationId: string | null) {
+  // nextAssignee undefined: no se tocó el responsable (se conserva, incluido el del modelo anterior).
+  async function editItem(item: ListItem, nextTitle: string, nextLocationId: string | null, nextAssignee?: string | null) {
     const formatted = capitalizeFirst(nextTitle);
     const locationValue = usesLocations ? nextLocationId : null;
+    const assigneeChanged = usesAssignees && nextAssignee !== undefined;
     await apply(items.map((candidate) =>
       candidate.id === item.id
-        ? { ...candidate, title: formatted, locationId: locationValue, updatedAt: new Date().toISOString() }
+        ? {
+            ...candidate,
+            title: formatted,
+            locationId: locationValue,
+            ...(assigneeChanged ? { assigneeUserId: nextAssignee ?? null, legacyAssignee: null } : {}),
+            updatedAt: new Date().toISOString()
+          }
         : candidate
     ), {
       url: `/api/lists/${list.id}/items/${item.id}`,
       method: "PATCH",
-      body: { title: formatted, locationId: locationValue }
+      body: { title: formatted, locationId: locationValue, ...(assigneeChanged ? { assigneeUserId: nextAssignee } : {}) }
     });
     setEditingItem(null);
   }
@@ -330,8 +351,12 @@ function ListContent({
             <div className="add-item-fields">
               {usesLocations && (
                 <button className="mobile-location-button" type="button" onClick={() => setChoosingLocation(true)}>
-                  <MapPin size={15} />
-                  <span>{selectedLocation?.name || "General"}</span>
+                  {usesAssignees ? <Settings2 size={15} /> : <MapPin size={15} />}
+                  <span>
+                    {usesAssignees
+                      ? selectedAssignee?.name || selectedLocation?.name || "Detalles"
+                      : selectedLocation?.name || "General"}
+                  </span>
                 </button>
               )}
               <div className="item-input-wrap">
@@ -389,6 +414,24 @@ function ListContent({
                 <Plus size={19} /><span>Agregar</span>
               </button>
             </div>
+            {usesAssignees && (
+              <div className="location-picker">
+                <span>Asignar a</span>
+                <button type="button" className={!assigneeId ? "selected" : ""} onClick={() => setAssigneeId("")}>
+                  Sin asignar
+                </button>
+                {members.map((member) => (
+                  <button
+                    type="button"
+                    key={member.userId}
+                    className={assigneeId === member.userId ? "selected" : ""}
+                    onClick={() => setAssigneeId(member.userId)}
+                  >
+                    <UserRound size={13} /> {member.name}
+                  </button>
+                ))}
+              </div>
+            )}
             {usesLocations && locations.length > 0 && (
               <div className="location-picker">
                 <span>{list.kind === "shopping" ? "Para" : "En"}</span>
@@ -412,7 +455,22 @@ function ListContent({
 
         <div className="list-toolbar">
           <div className="filter-chips">
-            {usesLocations && locations.length > 0 && (
+            {usesAssignees && (
+              <>
+                <button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>Todos</button>
+                {members.map((member) => (
+                  <button
+                    key={member.userId}
+                    className={filter === member.userId ? "selected" : ""}
+                    onClick={() => setFilter(member.userId)}
+                  >
+                    {member.name}
+                  </button>
+                ))}
+                <button className={filter === "none" ? "selected" : ""} onClick={() => setFilter("none")}>Sin asignar</button>
+              </>
+            )}
+            {!usesAssignees && usesLocations && locations.length > 0 && (
               <>
                 <button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>Todos</button>
                 {locations.map((location) => (
@@ -444,7 +502,7 @@ function ListContent({
             <>
               {readOnly ? (
                 pendingItems.map((item) => (
-                  <ListItemRow key={item.id} item={item} locations={locations} completeLabel={text.complete} readOnly onToggle={toggleItem} onEdit={setEditingItem} onDelete={deleteItem} />
+                  <ListItemRow key={item.id} item={item} locations={locations} assigneeName={assigneeName(item)} completeLabel={text.complete} readOnly onToggle={toggleItem} onEdit={setEditingItem} onDelete={deleteItem} />
                 ))
               ) : (
                 <SortableList
@@ -454,6 +512,7 @@ function ListContent({
                     <ListItemRow
                       item={item}
                       locations={locations}
+                      assigneeName={assigneeName(item)}
                       completeLabel={text.complete}
                       dragHandle={dragHandle}
                       onToggle={toggleItem}
@@ -471,6 +530,7 @@ function ListContent({
                       key={item.id}
                       item={item}
                       locations={locations}
+                      assigneeName={assigneeName(item)}
                       completeLabel={text.complete}
                       readOnly={readOnly}
                       onToggle={toggleItem}
@@ -516,7 +576,7 @@ function ListContent({
                 {locationId === location.id && <Check size={18} />}
               </button>
             ))}
-            {list.access === "owner" && (
+            {!readOnly && (
               <button className="sheet-manage-button" onClick={() => {
                 setChoosingLocation(false);
                 setSettingsOpen(true);
@@ -524,6 +584,24 @@ function ListContent({
                 <Settings2 size={19} />
                 <span><strong>Administrar ubicaciones</strong></span>
               </button>
+            )}
+            {usesAssignees && (
+              <>
+                <h3>Asignar a</h3>
+                <button className={!assigneeId ? "selected" : ""} onClick={() => setAssigneeId("")}>
+                  <Users size={19} />
+                  <span><strong>Sin asignar</strong><small>Cualquiera puede hacerla</small></span>
+                  {!assigneeId && <Check size={18} />}
+                </button>
+                {members.map((member) => (
+                  <button key={member.userId} className={assigneeId === member.userId ? "selected" : ""} onClick={() => setAssigneeId(member.userId)}>
+                    <UserRound size={19} />
+                    <span><strong>{member.name}</strong></span>
+                    {assigneeId === member.userId && <Check size={18} />}
+                  </button>
+                ))}
+                <button className="sheet-done-button" onClick={() => setChoosingLocation(false)}>Listo</button>
+              </>
             )}
           </section>
         </div>
@@ -533,8 +611,11 @@ function ListContent({
           title="Editar ítem"
           value={editingItem.title}
           locationId={editingItem.locationId}
+          assigneeId={editingItem.assigneeUserId}
+          legacyAssignee={editingItem.legacyAssignee}
           locations={usesLocations ? locations : []}
-          onSave={(value, nextLocationId) => editItem(editingItem, value, nextLocationId)}
+          assignees={usesAssignees ? members : []}
+          onSave={(value, nextLocationId, nextAssignee) => editItem(editingItem, value, nextLocationId, nextAssignee)}
           onClose={() => setEditingItem(null)}
         />
       )}

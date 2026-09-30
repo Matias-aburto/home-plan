@@ -1,20 +1,20 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { api } from "../api/client";
 import { CalendarEntryModal } from "./CalendarEntryModal";
 import { CalendarEntryRow } from "./CalendarEntryRow";
 import { compactDateFormatter, dateKey, dayFormatter, entriesOnDate, localDate, monthFormatter, occurrenceKey } from "../lib/calendar";
-import type { CalendarEntry, Family, OfflineMutation } from "../types";
+import type { CalendarEntry, OfflineMutation } from "../types";
 
 export function CalendarSection({
-  family,
+  familyId,
+  entries,
   onMutate
 }: {
-  family: Family;
-  onMutate: (family: Family, operation: OfflineMutation) => Promise<void>;
+  familyId: string;
+  entries: CalendarEntry[];
+  onMutate: (entries: CalendarEntry[], operation: OfflineMutation) => Promise<void>;
 }) {
   const today = dateKey(new Date());
-  const entries = family.calendarEntries || [];
   const [month, setMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -75,11 +75,8 @@ export function CalendarSection({
     const now = new Date().toISOString();
     if (editing) {
       const updated = { ...editing, ...data, updatedAt: now };
-      await onMutate({
-        ...family,
-        calendarEntries: entries.map((entry) => entry.id === editing.id ? updated : entry)
-      }, {
-        url: `/api/families/${family.id}/calendar/${editing.id}`,
+      await onMutate(entries.map((entry) => entry.id === editing.id ? updated : entry), {
+        url: `/api/families/${familyId}/calendar/${editing.id}`,
         method: "PATCH",
         body: data
       });
@@ -90,8 +87,8 @@ export function CalendarSection({
         createdAt: now,
         updatedAt: now
       };
-      await onMutate({ ...family, calendarEntries: [...entries, entry] }, {
-        url: `/api/families/${family.id}/calendar`,
+      await onMutate([...entries, entry], {
+        url: `/api/families/${familyId}/calendar`,
         method: "POST",
         body: { id: entry.id, ...data }
       });
@@ -101,11 +98,8 @@ export function CalendarSection({
   }
 
   async function deleteEntry(entry: CalendarEntry) {
-    await onMutate({
-      ...family,
-      calendarEntries: entries.filter(({ id }) => id !== entry.id)
-    }, {
-      url: `/api/families/${family.id}/calendar/${entry.id}`,
+    await onMutate(entries.filter(({ id }) => id !== entry.id), {
+      url: `/api/families/${familyId}/calendar/${entry.id}`,
       method: "DELETE"
     });
     setEditing(null);

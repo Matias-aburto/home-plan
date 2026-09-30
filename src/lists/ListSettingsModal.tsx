@@ -103,10 +103,10 @@ export function ListSettingsModal({
           <p>Arrastra los ítems para armar el orden personalizado.</p>
         </div>
 
-        {isOwner && list.kind !== "checklist" && (
+        {list.access !== "viewer" && list.kind !== "checklist" && (
           <>
             <h3 className="list-settings-heading">Ubicaciones</h3>
-            <p>Se comparten entre tus listas. Si eliminas una, sus ítems quedan como generales.</p>
+            <p>{list.familyId ? "Se comparten entre las listas de la familia." : "Se comparten entre tus listas."} Si eliminas una, sus ítems quedan como generales.</p>
             <div className="locations-list">
               {detail.locations.map((location) => (
                 <div className="location-edit-row" key={location.id}>

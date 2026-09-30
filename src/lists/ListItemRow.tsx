@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from "react";
-import { Check, MapPin, Pencil, Trash2 } from "lucide-react";
+import { Check, MapPin, Pencil, Trash2, UserRound } from "lucide-react";
 import { SwipeCard } from "../components/SwipeCard";
 import type { ListItem, Location } from "../types";
 
 export function ListItemRow({
   item,
   locations,
+  assigneeName = null,
   completeLabel,
   readOnly = false,
   dragHandle,
@@ -15,6 +16,7 @@ export function ListItemRow({
 }: {
   item: ListItem;
   locations: Location[];
+  assigneeName?: string | null;
   completeLabel: string;
   readOnly?: boolean;
   dragHandle?: ReactNode;
@@ -57,9 +59,10 @@ export function ListItemRow({
       </button>
       <button className="item-copy item-copy-button" onClick={toggle} disabled={readOnly}>
         <span>{item.title}</span>
-        {location && (
+        {(assigneeName || location) && (
           <small>
-            <em><MapPin size={11} /> {location.name}</em>
+            {assigneeName && <em><UserRound size={11} /> {assigneeName}</em>}
+            {location && <em><MapPin size={11} /> {location.name}</em>}
           </small>
         )}
       </button>

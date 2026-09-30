@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { CalendarDays, ListTodo, ShoppingBasket } from "lucide-react";
+import { CalendarDays, Settings2 } from "lucide-react";
 import { useLocation } from "react-router";
 import { useMe } from "../data/MeProvider";
-import { useLegacyFamily } from "../family/LegacyFamilyProvider";
 import { ListIcon } from "../lists/listStyle";
+import type { ListSummary } from "../types";
 
 export type NavEntry = {
   key: string;
@@ -13,53 +13,69 @@ export type NavEntry = {
   badge?: number;
 };
 
-export type Space = "personal" | "family";
+// Un espacio del menú: las listas personales o una familia.
+export type NavSpace = {
+  key: string;
+  familyId: string | null;
+  title: string;
+  to: string;
+  lists: NavEntry[];
+  archived: ListSummary[];
+  // Accesos que no son listas (calendario, ajustes); no se reordenan.
+  links: NavEntry[];
+};
 
-export const familyPaths = {
-  shopping: "/familia",
-  tasks: "/familia/tareas",
-  calendar: "/familia/calendario"
-} as const;
-
-// Entradas del menú de cada espacio y cuál está activo según la URL.
-export function useNavigation() {
-  const { pathname } = useLocation();
-  const { lists } = useMe();
-  const { family } = useLegacyFamily();
-
-  const activeLists = lists.filter((list) => !list.archivedAt);
-  const archivedLists = lists.filter((list) => list.archivedAt);
-  const personal: NavEntry[] = activeLists.map((list) => ({
+function listEntry(list: ListSummary): NavEntry {
+  return {
     key: list.id,
     to: `/listas/${list.id}`,
     label: list.name,
     icon: <ListIcon icon={list.icon} color={list.color} size={16} />,
     badge: list.pendingCount
-  }));
-  const familyEntries: NavEntry[] = family ? [
-    {
-      key: "family-shopping",
-      to: familyPaths.shopping,
-      label: "Lista de compras",
-      icon: <ShoppingBasket size={20} />,
-      badge: family.items.filter((item) => !item.completed).length
-    },
-    {
-      key: "family-tasks",
-      to: familyPaths.tasks,
-      label: "Por hacer",
-      icon: <ListTodo size={20} />,
-      badge: family.tasks.filter((task) => !task.completed).length
-    },
-    { key: "family-calendar", to: familyPaths.calendar, label: "Calendario", icon: <CalendarDays size={20} /> }
-  ] : [];
+  };
+}
 
-  const currentListId = pathname.startsWith("/listas/") ? pathname.split("/")[2] : null;
-  const space: Space = pathname.startsWith("/familia") ? "family" : "personal";
-  const activeKey = currentListId
-    ?? (pathname.startsWith(familyPaths.tasks) ? "family-tasks"
-      : pathname.startsWith(familyPaths.calendar) ? "family-calendar"
-        : pathname.startsWith(familyPaths.shopping) ? "family-shopping" : null);
+// Espacios del menú y cuál está activo según la URL.
+export function useNavigation() {
+  const { pathname } = useLocation();
+  const { lists, families } = useMe();
+  const segments = pathname.split("/");
 
-  return { space, activeKey, personal, archivedLists, familyEntries, family };
+  const spaces: NavSpace[] = [
+    {
+      key: "personal",
+      familyId: null,
+      title: "Mis listas",
+      to: "/personal",
+      lists: lists.filter((list) => !list.familyId && !list.archivedAt).map(listEntry),
+      archived: lists.filter((list) => !list.familyId && list.archivedAt),
+      links: []
+    },
+    ...families.map((family) => ({
+      key: family.id,
+      familyId: family.id,
+      title: family.name,
+      to: `/familias/${family.id}`,
+      lists: lists.filter((list) => list.familyId === family.id && !list.archivedAt).map(listEntry),
+      archived: lists.filter((list) => list.familyId === family.id && list.archivedAt),
+      links: [
+        { key: `calendar:${family.id}`, to: `/familias/${family.id}/calendario`, label: "Calendario", icon: <CalendarDays size={18} /> },
+        { key: `settings:${family.id}`, to: `/familias/${family.id}/ajustes`, label: "Ajustes", icon: <Settings2 size={18} /> }
+      ]
+    }))
+  ];
+
+  let activeKey: string | null = null;
+  let activeFamilyId: string | null = null;
+  if (segments[1] === "listas") {
+    activeKey = segments[2];
+    activeFamilyId = lists.find((list) => list.id === segments[2])?.familyId ?? null;
+  } else if (segments[1] === "familias" && segments[2]) {
+    activeFamilyId = segments[2];
+    activeKey = segments[3] === "calendario" ? `calendar:${segments[2]}`
+      : segments[3] === "ajustes" ? `settings:${segments[2]}` : null;
+  }
+  const activeSpace = spaces.find((space) => space.familyId === activeFamilyId) ?? spaces[0];
+
+  return { spaces, activeSpace, activeKey, families };
 }

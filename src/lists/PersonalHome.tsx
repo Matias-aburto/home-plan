@@ -2,16 +2,14 @@ import { useState } from "react";
 import { ListChecks, Plus, Users } from "lucide-react";
 import { Link } from "react-router";
 import { useMe } from "../data/MeProvider";
-import { useLegacyFamily } from "../family/LegacyFamilyProvider";
 import { NewListModal } from "./NewListModal";
 import { ListIcon, listKinds } from "./listStyle";
 
 // Vista general de las listas del usuario; también es la bienvenida cuando todavía no tiene ninguna.
 export function PersonalHome() {
-  const { lists } = useMe();
-  const { family } = useLegacyFamily();
+  const { lists, families } = useMe();
   const [creating, setCreating] = useState(false);
-  const activeLists = lists.filter((list) => !list.archivedAt);
+  const activeLists = lists.filter((list) => !list.familyId && !list.archivedAt);
 
   return (
     <section className="content">
@@ -29,9 +27,9 @@ export function PersonalHome() {
             <button className="primary-button" onClick={() => setCreating(true)}>
               <Plus size={18} /> Nueva lista
             </button>
-            {!family && (
-              <Link className="secondary-button" to="/familia/unirse">
-                <Users size={18} /> Crear o unirme a una familia
+            {families.length === 0 && (
+              <Link className="secondary-button" to="/familias/nueva">
+                <Users size={18} /> Crear o recuperar una familia
               </Link>
             )}
           </div>

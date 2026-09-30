@@ -59,8 +59,8 @@ export async function cacheFamily<T extends { id: string }>(family: T) {
   await cachePut("families", family.id, family);
 }
 
-export async function getCachedFamily<T>(familyId: string) {
-  return cacheGet<T>("families", familyId.toUpperCase());
+export async function getCachedFamily<T>(id: string) {
+  return cacheGet<T>("families", id);
 }
 
 export async function cacheList<T extends { list: { id: string } }>(detail: T) {
