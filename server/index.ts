@@ -1,14 +1,15 @@
+import "./env.js";
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app } from "./app.js";
-import { HomeRepository } from "./database.js";
+import { migrate } from "./db/migrations.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT) || 3001;
 
 // En Vercel las migraciones corren en el build; localmente se aplican al arrancar.
-await new HomeRepository().initialize();
+await migrate();
 
 const distDirectory = path.join(__dirname, "../dist");
 app.use(express.static(distDirectory));

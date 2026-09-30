@@ -1,6 +1,8 @@
 # Plan: cuentas, listas personalizadas y familias
 
-Estado: **en desarrollo**. Etapa 0A completada (producción en Vercel + Ably). Siguiente: Etapa 0.
+Estado: **publicado**. Etapas 0A a 7 completadas.
+
+> **Decisión final (antes de publicar):** se parte de cero. Se quitaron la migración de las familias por código, su reclamo con el código familiar y la vinculación de responsables antiguos (descritos en las etapas 3 y 7). Las tablas del modelo anterior (`shopping_items`, `household_tasks`, `locations`, `learned_products`) ya no se crean ni se usan; en la base de producción quedan intactas, sin uso, y se pueden borrar más adelante.
 
 ## 1. Objetivo
 
@@ -372,15 +374,21 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - **Requisito externo**: cuenta de Vercel conectada al repo de GitHub y app de Ably con una API key (permisos publish + subscribe).
 - **Listo cuando**: la app corre en Vercel sin cold start perceptible, dos dispositivos se sincronizan en tiempo real y el modo offline sigue funcionando.
 
-### Etapa 0: Preparación
+### Etapa 0: Preparación ✅
 - Dividir `App.tsx` según la estructura de §8 sin cambiar comportamiento.
 - Dividir `server/index.ts` en routers (`routes/items.ts`, `routes/tasks.ts`, …) y `HomeRepository` por dominio.
 - Agregar `react-router`.
 - Agregar `vitest` + `supertest`; base de datos libSQL en memoria (`file::memory:`) para tests.
 - Tests de humo de la API actual.
 - **Listo cuando**: la app se comporta igual y `npm test` pasa.
+- **Resultado**:
+  - Servidor: `server/app.ts` monta routers por dominio (`server/routes/`), con validaciones en `server/http/` y acceso a datos en `server/db/` (un módulo por dominio + `migrations.ts`).
+  - Cliente: `src/App.tsx` solo orquesta sesión, sincronización y tiempo real; el resto vive en `api/`, `lib/`, `hooks/`, `components/`, `onboarding/`, `family/`, `shopping/`, `tasks/` y `calendar/`.
+  - Las secciones tienen URL propia (`/`, `/tareas`, `/calendario`) con `react-router`; funcionan el botón atrás y recargar.
+  - `npm test`: tests de API con base libSQL temporal (`server/app.test.ts`) y unitarios de orden de listas y calendario (`src/lib/*.test.ts`).
+  - Ajuste: la gestión de ubicaciones recarga la familia al guardar, sin depender del tiempo real.
 
-### Etapa 1: Login con Google
+### Etapa 1: Login con Google ✅
 - Tablas `users`, `sessions`; `google-auth-library`; middleware `requireUser`.
 - `POST /api/auth/google`, `logout`, `logout-all`, `GET/PATCH /api/me`.
 - `LoginPage`, `AuthProvider`, guardas de ruta.
@@ -388,8 +396,18 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - Convivencia: tras login, si el usuario no tiene nada, se ofrece "Tengo un código antiguo" (usa aún el flujo viejo).
 - **Tests**: token inválido / aud incorrecto / email no verificado → 401; sesión vencida → 401; renovación deslizante.
 - **Listo cuando**: se puede entrar y salir con Google en local y en Vercel.
+- **Resultado** (rama `feature/etapa-1-login`):
+  - Tablas `users` y `sessions` (token opaco; en la base solo su hash SHA-256; 60 días con renovación deslizante diaria).
+  - `server/auth/google.ts` verifica el ID token (`google-auth-library`, exige `email_verified`). `GET /api/auth/config` entrega el Client ID al cliente, así no se necesita en el build.
+  - Toda la API salvo `/api/health` y `/api/auth/*` exige sesión, incluidas las rutas antiguas de familia (convivencia hasta la Etapa 7).
+  - Seguridad: cookie `sid` httpOnly + `SameSite=Lax` (+ `Secure` en HTTPS), escrituras con `Origin` distinto al `Host` → 403, límite de 30 intentos de login cada 10 min por IP. Se quitó `cors`.
+  - Cliente: `AuthProvider` + `LoginPage` (Google Identity Services) + menú de cuenta en la cabecera (salir de la familia, cerrar sesión, cerrar en todos lados; también accesible en móvil).
+  - Sesión vencida (401): se pide login pero se conserva la cola offline; cerrar sesión o entrar con otra cuenta borra los datos del dispositivo.
+  - Desarrollo local sin Google: `AUTH_DEV_LOGIN=1` habilita `POST /api/auth/dev` (nunca en Vercel).
+  - El token de Ably sigue siendo por familia; el canal `user:<id>` se agrega cuando haga falta (Etapa 4).
+  - Pendiente del dueño: crear la credencial OAuth y cargar `GOOGLE_CLIENT_ID` en Vercel.
 
-### Etapa 2: Listas personales
+### Etapa 2: Listas personales ✅
 - Tablas `lists`, `list_items`, `user_list_prefs`; `listAccess()`.
 - API de listas e ítems (§6), reorder, archivado de completados por lista (misma regla actual: 5 últimos en 24 h).
 - UI: espacio Personal, sidebar dinámico, Nueva lista, ajustes de lista, `ListPage` genérica por tipo.
@@ -397,41 +415,86 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - Offline de listas personales.
 - **Tests**: matriz de permisos (§3) para owner/none; idempotencia con id del cliente; reorder solo de pendientes.
 - **Listo cuando**: un usuario sin familia usa listas de compras, tareas y checklist, incluso sin conexión.
+- **Resultado** (rama `feature/etapa-2-listas`):
+  - Tablas `lists`, `list_items`, `user_list_prefs`, `places` y `learned_names`. Cambios respecto del §4:
+    - Ubicaciones en `places` (nueva) en vez de modificar `locations`: reconstruir `locations` con claves foráneas activas pondría en null las ubicaciones de todos los ítems existentes. `locations` se migra a `places` al migrar las familias.
+    - Productos aprendidos en `learned_names` con `scope` = `user:<id>` / `family:<id>`.
+    - El orden de los ítems (personalizado/alfabético) es preferencia de cada usuario en `user_list_prefs.sort`; no hay `default_sort` en `lists`.
+  - Borrados explícitos de dependencias (ítems, preferencias, ubicaciones en ítems): no se depende de `ON DELETE` porque `PRAGMA foreign_keys` es por conexión y en Vercel no se garantiza.
+  - `listAccess()` en `server/auth/access.ts` (hoy solo dueño); middleware `loadList` responde 404 sin acceso.
+  - Tiempo real: `GET /api/realtime/token?family=` entrega un token con `user:<id>` (+ la familia actual). Cambios de listas avisan `me:changed { listId }` en el canal del usuario.
+  - Cliente: cola offline global (`src/data/sync.ts`), `MeProvider`, `ConnectionProvider`, `LegacyFamilyProvider`, `AppShell` con menú lateral (listas reordenables, archivadas, familia) y en móvil barra inferior + cajón "Menú". Rutas `/personal`, `/listas/:id`, `/familia`, `/familia/tareas`, `/familia/calendario`, `/familia/unirse`.
+  - `ListPage` genérica por tipo; ajustes de lista (nombre, ícono, color, orden, ubicaciones, archivar, eliminar con confirmación).
+  - **Decisión para la Etapa 3**: migrar ahí mismo las familias por código a listas (adelantando parte de la Etapa 7), para no mantener dos modelos de familia en paralelo.
 
-### Etapa 3: Familias
+### Etapa 3: Familias ✅
 - Tabla `family_members`; crear, renombrar, borrar, salir, transferir, roles.
 - Listas de familia; calendario y ubicaciones con permisos.
 - Selector de espacio; responsable = miembros reales.
 - **Tests**: miembro de familia A no ve nada de familia B; admin no puede quitar al owner; no se puede dejar la familia sin owner.
 - **Listo cuando**: un usuario pertenece a 2 familias con contenido independiente.
+- **Resultado** (rama `feature/etapa-3-familias`), incluye la migración y el reclamo de la Etapa 7:
+  - `family_members` con un único `owner` (se cambia con `POST /transfer`), `admin` y `member`. `requireMember(rol)` responde 404 a quien no es miembro.
+  - Permisos: owner/admin → `owner` de las listas de la familia; member → `editor`. Ubicaciones: las gestiona cualquier editor.
+  - Responsables: `assignee_user_id` debe ser miembro de la familia y solo aplica a listas de tareas. Al salir alguien, sus tareas quedan sin asignar.
+  - Migración idempotente por familia (`families.lists_migrated_at`): `locations` → `places`, `shopping_items` → lista "Compras", `household_tasks` → "Por hacer" (con `legacy_assignee`), `learned_products` → `learned_names`. Mismos ids. Autor: usuario de sistema `system`. Las tablas antiguas quedan como respaldo.
+  - Reclamo: `POST /api/families/claim { code }` (una sola vez). Enlaces antiguos `?familia=CODIGO` llevan a `/familias/nueva?codigo=`.
+  - Vincular responsables antiguos: `POST /api/families/:id/legacy-assignees`.
+  - Se eliminaron las rutas antiguas (`/api/families/:id/items|tasks|locations|suggestions` y la carga de la familia completa) y la familia `CASA` automática.
+  - Tiempo real: el token incluye `family:<id>` de todas las familias del usuario; los cambios de listas de familia avisan en el canal de la familia.
+  - Cliente: rutas `/familias/nueva`, `/familias/:id`, `/familias/:id/calendario`, `/familias/:id/ajustes`. Menú con un bloque por espacio (Mis listas y cada familia). Tareas de familia con responsable (formulario, filtros, edición).
+  - Pendiente para la Etapa 4: invitar personas (hoy solo se entra a una familia creándola o reclamándola).
 
-### Etapa 4: Invitaciones
+### Etapa 4: Invitaciones ✅
 - Tabla `invitations`; crear, listar, revocar, aceptar, rechazar, vencer (se marca `expired` al consultar).
 - Bandeja, campana con contador, `InvitationLanding` para `/invitacion/:token`.
 - Invitaciones a emails sin cuenta aparecen en el primer login.
 - Mensajes Ably `invitation:changed` y renovación del token (capabilities) al aceptar.
 - **Tests**: aceptar dos veces; token vencido/revocado; invitar a quien ya es miembro; email con mayúsculas.
 - **Listo cuando**: se invita por email o enlace, y el invitado acepta o rechaza desde su bandeja.
+- **Resultado** (rama `feature/etapa-4-invitaciones`):
+  - Tabla `invitations` genérica (`family` ahora, `list` en la Etapa 5). Del enlace solo se guarda el hash del token (como las sesiones), así que "reenviar" crea un enlace nuevo y anula el anterior.
+  - Invitan owner y admin; solo el owner ofrece el rol admin. Límite de 50 invitaciones por usuario cada 24 h. No se invita a quien ya es miembro.
+  - Aceptar/rechazar desde la bandeja exige que el email de la cuenta coincida; desde el enlace vale para cualquier cuenta con sesión, una vez. Respuestas sobre invitaciones cerradas: 410 con el motivo.
+  - Tiempo real: se reutiliza `me:changed` (al invitado, si ya tiene cuenta) y `family:changed`; al aceptar cambian las familias del usuario y el cliente pide un token nuevo con el canal de la familia (no hizo falta un mensaje `invitation:*` aparte).
+  - Cliente: campana con contador en la cabecera, `/invitaciones` (bandeja), `/invitacion/:token` (el login conserva la URL), y en los ajustes de la familia: invitar, copiar/compartir enlace, reenviar y anular pendientes.
 
-### Etapa 5: Compartir listas con personas puntuales
+### Etapa 5: Compartir listas con personas puntuales ✅
 - Tabla `list_members`; permisos `editor`/`viewer`; invitaciones tipo `list`.
 - Sección "Compartidas conmigo"; `ShareListModal`; dejar una lista compartida.
 - UI de solo lectura para `viewer` (sin swipe, sin formulario de agregar).
 - Mover listas entre personal y familia (conserva `list_members`).
 - **Tests**: viewer no puede escribir; quitar a alguien le emite `list:removed`; mover lista cambia quién la ve.
 - **Listo cuando**: una lista personal se comparte con alguien de fuera de la familia.
+- **Resultado** (rama `feature/etapa-5-compartir`):
+  - `list_members` con `editor`/`viewer`. `listAccess()` y `visibleLists()` toman el mayor acceso entre dueño, rol en la familia y compartido directo.
+  - Invitaciones tipo `list` con la misma tabla y flujo de la Etapa 4 (`POST /api/lists/:id/invitations { email, permission }`); no se invita a quien ya tiene acceso.
+  - Gestión: cambiar permiso y quitar (quien administra la lista), dejar de ver (`DELETE /members/me`).
+  - `POST /api/lists/:id/move { familyId | null }`: entre lo personal y una familia propia. Los ítems pierden ubicación y responsable (eran del dueño anterior); lo compartido se mantiene.
+  - Tiempo real: se avisa por el canal de cada usuario con acceso (sin canales `list:<id>`).
+  - Cliente: espacio "Compartidas conmigo" (`/compartidas`), botón Compartir en cada lista, aviso de solo lectura para lectores, "Mover a" en los ajustes de la lista. `InviteManager` es común a familias y listas.
 
-### Etapa 6: Tiempo real y offline completos
+### Etapa 6: Tiempo real y offline completos ✅
 - Canales y mensajes por lista (§7) reemplazando el aviso por familia de la Etapa 0A; token por sesión con capabilities por canal.
 - IndexedDB v2, cola por usuario, manejo de 401/404, logout limpia datos.
 - **Listo cuando**: dos dispositivos con distintos usuarios ven solo lo suyo en tiempo real, y offline sigue funcionando como hoy.
+- **Resultado** (rama `feature/etapa-6-offline`). Lo de canales y cola por usuario se fue armando en las etapas 2–5; esta etapa corrigió la cola y la probó:
+  - **Bug corregido**: tras un intento de envío sin conexión, `flushQueue` quedaba con una promesa ya resuelta guardada y no volvía a enviar hasta recargar la página.
+  - **Bug corregido**: dos cambios en el mismo milisegundo podían enviarse en orden inverso; ahora la cola usa un número de secuencia (`seq`).
+  - **Bug corregido**: lo que se agregaba mientras la cola se enviaba podía quedar esperando; ahora se envía de a una operación releyendo la cola.
+  - Rechazos permanentes (400, 403, 409, 410, 422) se descartan en vez de bloquear la cola, y se avisa al usuario; 404 se descarta sin aviso. Red caída, 401, 429 y 5xx detienen el envío y se reintenta cada 30 s, al volver la red o al reconectar Ably.
+  - Si entra otra cuenta en el dispositivo, se avisa cuántos cambios pendientes de la anterior se descartaron.
+  - Sin tiempo real configurado, el estado vuelve a "Sincronizado" al recuperar la red.
+  - Tests de la cola en `src/data/sync.test.ts` (happy-dom + fake-indexeddb).
+  - Probado en el navegador: cambios sin conexión, envío al volver, cambio rechazado con aviso y arranque desde la caché con el servidor caído.
 
-### Etapa 7: Migración y retiro del modelo antiguo
+### Etapa 7: Migración y retiro del modelo antiguo ✅
 - Script de migración (§9) probado primero contra una copia de la base de Turso.
 - Reclamar familia y vincular responsables antiguos.
 - Quitar onboarding por código, rutas antiguas, familia `CASA` automática.
 - Actualizar `README.md` y variables de entorno en Vercel.
 - **Listo cuando**: los datos actuales están en listas nuevas, reclamados, y ya no se puede entrar solo con el código.
+- **Resultado**: la migración y el reclamo se hicieron en la Etapa 3. En la rama `feature/etapa-7-cierre`: README reescrito, tipos del modelo anterior movidos a `migrations.ts` (solo sirven para importar el antiguo `db.json`), limpieza de estilos sin uso y verificación con `vercel build`. Las tablas antiguas (`shopping_items`, `household_tasks`, `locations`, `learned_products`) siguen como respaldo; se pueden borrar en una versión posterior, tras confirmar en producción.
 
 ## 11. Riesgos y mitigaciones
 
