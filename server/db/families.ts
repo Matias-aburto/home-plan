@@ -102,6 +102,7 @@ export async function deleteFamily(familyId: string) {
     { sql: "DELETE FROM learned_names WHERE scope = ?", args: [`family:${key}`] },
     { sql: "DELETE FROM calendar_entries WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM family_members WHERE family_id = ?", args: [key] },
+    { sql: "DELETE FROM invitations WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM shopping_items WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM household_tasks WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM learned_products WHERE family_id = ?", args: [key] },

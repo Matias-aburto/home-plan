@@ -94,6 +94,27 @@ export async function migrate() {
       PRIMARY KEY (family_id, user_id)
     )`,
     "CREATE INDEX IF NOT EXISTS idx_family_members_user ON family_members(user_id)",
+    // Invitaciones a una familia o (Etapa 5) a una lista. Del enlace solo se guarda el hash del token.
+    `CREATE TABLE IF NOT EXISTS invitations (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      kind TEXT NOT NULL CHECK (kind IN ('family', 'list')),
+      family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+      list_id TEXT,
+      invited_email TEXT NOT NULL,
+      offered_role TEXT NOT NULL,
+      invited_by TEXT NOT NULL REFERENCES users(id),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'accepted', 'declined', 'revoked', 'expired')),
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      responded_at TEXT,
+      responded_by TEXT REFERENCES users(id),
+      CHECK ((kind = 'family' AND family_id IS NOT NULL AND list_id IS NULL)
+        OR (kind = 'list' AND list_id IS NOT NULL AND family_id IS NULL))
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(invited_email, status)",
+    "CREATE INDEX IF NOT EXISTS idx_invitations_family ON invitations(family_id, status)",
     // Listas nuevas: el dueño es un usuario (personal) o una familia (compartida), nunca ambos.
     `CREATE TABLE IF NOT EXISTS lists (
       id TEXT PRIMARY KEY,

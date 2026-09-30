@@ -4,6 +4,7 @@ import { realtimeEnabled } from "./realtime.js";
 import { authRouter } from "./routes/auth.js";
 import { calendarRouter } from "./routes/calendar.js";
 import { familiesRouter } from "./routes/families.js";
+import { familyInvitationsRouter, invitationsRouter } from "./routes/invitations.js";
 import { listsRouter } from "./routes/lists.js";
 import { meRouter } from "./routes/me.js";
 import { realtimeRouter } from "./routes/realtime.js";
@@ -24,6 +25,8 @@ app.use("/api/me", meRouter);
 app.use("/api/realtime", realtimeRouter);
 app.use("/api/lists", listsRouter);
 app.use("/api/families/:id/calendar", calendarRouter);
+app.use("/api/families/:id/invitations", familyInvitationsRouter);
+app.use("/api/invitations", invitationsRouter);
 app.use("/api/families", familiesRouter);
 
 export default app;
