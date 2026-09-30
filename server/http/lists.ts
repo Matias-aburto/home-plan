@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { hasAccess, listAccess } from "../auth/access.js";
 import { getListRecord } from "../db/lists.js";
 import type { ListAccess, ListRecord } from "../db/types.js";
-import { notifyUserChanged } from "../realtime.js";
+import { notifyFamilyChanged, notifyUserChanged } from "../realtime.js";
 import { currentUser } from "./session.js";
 
 export type ListParams = { listId: string };
@@ -36,7 +36,8 @@ export function requireAccess(required: Exclude<ListAccess, "none">) {
   };
 }
 
-// Avisa a quienes ven la lista que cambió. Por ahora, solo al dueño.
+// Avisa a quienes ven la lista que cambió: al dueño o a toda la familia.
 export async function broadcastList(list: ListRecord) {
   if (list.ownerUserId) await notifyUserChanged(list.ownerUserId, { listId: list.id });
+  if (list.familyId) await notifyFamilyChanged(list.familyId, { listId: list.id });
 }

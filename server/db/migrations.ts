@@ -1,7 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { databaseUrl, db, localDataDirectory, normalizeText, value } from "./client.js";
-import { createFamily, getFamily } from "./families.js";
+import { migrateLegacyFamilies, systemUserId } from "./legacyMigration.js";
 import type { Family, HouseholdTask, ListTable, ShoppingItem } from "./types.js";
 
 type LegacyDatabase = { families?: Record<string, Partial<Family>> };
@@ -86,6 +86,14 @@ export async function migrate() {
       user_agent TEXT
     )`,
     "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
+    `CREATE TABLE IF NOT EXISTS family_members (
+      family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'member')),
+      joined_at TEXT NOT NULL,
+      PRIMARY KEY (family_id, user_id)
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_family_members_user ON family_members(user_id)",
     // Listas nuevas: el dueño es un usuario (personal) o una familia (compartida), nunca ambos.
     `CREATE TABLE IF NOT EXISTS lists (
       id TEXT PRIMARY KEY,
@@ -158,11 +166,27 @@ export async function migrate() {
   }
   await ensurePositionColumn("shopping_items");
   await ensurePositionColumn("household_tasks");
+  await ensureColumn("families", "created_by", "TEXT REFERENCES users(id)");
+  await ensureColumn("families", "legacy_code_claimed_at", "TEXT");
+  await ensureColumn("families", "lists_migrated_at", "TEXT");
+
+  // Autor de las listas creadas por la migración, antes de que alguien reclame la familia.
+  await db.execute({
+    sql: `INSERT OR IGNORE INTO users (id, google_sub, email, name, color, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [systemUserId, "system", "system@casa.local", "Casa", "green", new Date().toISOString()]
+  });
 
   await importLegacyData();
   await backfillPositions("shopping_items");
   await backfillPositions("household_tasks");
-  if (!(await getFamily("CASA"))) await createFamily("Familia de prueba", "CASA");
+  await migrateLegacyFamilies();
+}
+
+async function ensureColumn(table: string, column: string, definition: string) {
+  const columns = await db.execute(`PRAGMA table_info(${table})`);
+  if (columns.rows.some((row) => String(row.name) === column)) return;
+  await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
 async function ensurePositionColumn(table: ListTable) {

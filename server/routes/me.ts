@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { userFamilies } from "../db/families.js";
 import { setListOrder, visibleLists } from "../db/lists.js";
 import { updateUser, userColors } from "../db/users.js";
 import { currentUser } from "../http/session.js";
@@ -7,10 +8,11 @@ import { notifyUserChanged } from "../realtime.js";
 
 export const meRouter = Router();
 
-// Arranque de la app. Familias e invitaciones se agregan en las próximas etapas.
+// Arranque de la app. Las invitaciones se agregan en la Etapa 4.
 meRouter.get("/", async (_request, response) => {
   const user = currentUser(response);
-  response.json({ user, families: [], lists: await visibleLists(user.id), invitations: [] });
+  const [families, lists] = await Promise.all([userFamilies(user.id), visibleLists(user.id)]);
+  response.json({ user, families, lists, invitations: [] });
 });
 
 meRouter.patch("/", async (request, response) => {

@@ -1,4 +1,4 @@
-import type { Assignee, CalendarEntryInput } from "../db/types.js";
+import type { CalendarEntryInput } from "../db/types.js";
 
 export function cleanText(input: unknown, maxLength: number) {
   return typeof input === "string" ? input.trim().slice(0, maxLength) : "";
@@ -31,10 +31,6 @@ export function oneOf<T extends string>(options: readonly T[], input: unknown): 
 
 export function readSortMode(input: unknown) {
   return oneOf(["custom", "alpha"] as const, input);
-}
-
-export function readAssignee(input: unknown): Assignee | null {
-  return input === "Matías" || input === "Francisca" ? input : null;
 }
 
 export function readCalendarEntry(body: Record<string, unknown>): CalendarEntryInput | null {

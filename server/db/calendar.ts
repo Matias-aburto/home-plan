@@ -2,14 +2,9 @@ import { nanoid } from "nanoid";
 import { db, familyKey, text, value } from "./client.js";
 import type { CalendarEntry, CalendarEntryInput } from "./types.js";
 
-export async function getCalendarEntry(familyId: string, entryId: string): Promise<CalendarEntry | null> {
-  const result = await db.execute({
-    sql: `SELECT id, title, kind, event_date, event_time, recurrence, notes, created_at, updated_at
-      FROM calendar_entries WHERE id = ? AND family_id = ?`,
-    args: [entryId, familyKey(familyId)]
-  });
-  const row = result.rows[0];
-  if (!row) return null;
+const columns = "id, title, kind, event_date, event_time, recurrence, notes, created_at, updated_at";
+
+function toEntry(row: Record<string, unknown>): CalendarEntry {
   return {
     id: String(row.id),
     title: String(row.title),
@@ -21,6 +16,22 @@ export async function getCalendarEntry(familyId: string, entryId: string): Promi
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at)
   };
+}
+
+export async function listCalendarEntries(familyId: string) {
+  const result = await db.execute({
+    sql: `SELECT ${columns} FROM calendar_entries WHERE family_id = ? ORDER BY event_date, event_time, created_at`,
+    args: [familyKey(familyId)]
+  });
+  return result.rows.map(toEntry);
+}
+
+export async function getCalendarEntry(familyId: string, entryId: string): Promise<CalendarEntry | null> {
+  const result = await db.execute({
+    sql: `SELECT ${columns} FROM calendar_entries WHERE id = ? AND family_id = ?`,
+    args: [entryId, familyKey(familyId)]
+  });
+  return result.rows[0] ? toEntry(result.rows[0]) : null;
 }
 
 // Si el cliente reenvía un id ya guardado (cola offline), devuelve la existente.

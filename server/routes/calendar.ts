@@ -3,14 +3,24 @@ import {
   addCalendarEntry,
   deleteCalendarEntry,
   getCalendarEntry,
+  listCalendarEntries,
   updateCalendarEntry
 } from "../db/calendar.js";
-import { broadcast, type FamilyParams } from "../http/family.js";
+import { requireMember, type FamilyParams } from "../http/family.js";
 import { cleanText, readCalendarEntry } from "../http/validation.js";
+import { notifyFamilyChanged } from "../realtime.js";
 
+// Calendario de la familia: cualquier miembro puede verlo y editarlo.
 export const calendarRouter = Router({ mergeParams: true });
 
+calendarRouter.use(requireMember());
+
 const invalidEntry = { message: "Revisa el título, la fecha y la hora." };
+const broadcast = (familyId: string) => notifyFamilyChanged(familyId, { calendar: true });
+
+calendarRouter.get<FamilyParams>("/", async (request, response) => {
+  return response.json(await listCalendarEntries(request.params.id));
+});
 
 calendarRouter.post<FamilyParams>("/", async (request, response) => {
   const entryData = readCalendarEntry(request.body);

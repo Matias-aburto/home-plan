@@ -28,23 +28,25 @@ export async function getListRecord(listId: string) {
   return result.rows[0] ? toRecord(result.rows[0]) : null;
 }
 
-// Listas que el usuario ve en su menú, en su orden. Por ahora solo las propias;
-// las de familia y las compartidas se suman en las próximas etapas.
+// Listas que el usuario ve en su menú, en su orden: las propias y las de sus familias.
+// Las compartidas con personas puntuales se suman en la Etapa 5.
 export async function visibleLists(userId: string): Promise<ListSummary[]> {
   const result = await db.execute({
     sql: `SELECT ${listColumns},
         COALESCE(p.position, 0) AS pref_position,
         COALESCE(p.sort, 'custom') AS pref_sort,
-        (SELECT COUNT(*) FROM list_items i WHERE i.list_id = l.id AND i.completed = 0) AS pending_count
+        (SELECT COUNT(*) FROM list_items i WHERE i.list_id = l.id AND i.completed = 0) AS pending_count,
+        m.role AS family_role
       FROM lists l
       LEFT JOIN user_list_prefs p ON p.list_id = l.id AND p.user_id = ?
-      WHERE l.owner_user_id = ?
+      LEFT JOIN family_members m ON m.family_id = l.family_id AND m.user_id = ?
+      WHERE l.owner_user_id = ? OR m.user_id IS NOT NULL
       ORDER BY pref_position, l.created_at`,
-    args: [userId, userId]
+    args: [userId, userId, userId]
   });
   return result.rows.map((row) => ({
     ...toRecord(row),
-    access: "owner",
+    access: row.owner_user_id === userId || row.family_role === "owner" || row.family_role === "admin" ? "owner" : "editor",
     position: Number(row.pref_position),
     sort: String(row.pref_sort) as SortMode,
     pendingCount: Number(row.pending_count)
@@ -71,8 +73,8 @@ export async function listSummary(userId: string, list: ListRecord, access: Excl
   } satisfies ListSummary;
 }
 
-// Crea una lista personal y la deja al final del menú de su dueño.
-export async function createPersonalList(userId: string, input: ListInput, requestedId?: string) {
+// Crea una lista personal (familyId null) o de familia y la deja al final del menú de quien la crea.
+export async function createList(userId: string, familyId: string | null, input: ListInput, requestedId?: string) {
   const id = requestedId || nanoid();
   const now = new Date().toISOString();
   const last = await db.execute({
@@ -83,8 +85,10 @@ export async function createPersonalList(userId: string, input: ListInput, reque
   await db.batch([
     {
       sql: `INSERT INTO lists (id, owner_user_id, family_id, name, kind, icon, color, created_by, created_at, updated_at)
-        VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [id, userId, input.name, input.kind, input.icon, input.color, userId, now, now]
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        id, familyId ? null : userId, familyId, input.name, input.kind, input.icon, input.color, userId, now, now
+      ]
     },
     {
       sql: "INSERT INTO user_list_prefs (user_id, list_id, position) VALUES (?, ?, ?)",

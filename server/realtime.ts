@@ -23,8 +23,9 @@ async function publish(channel: string, name: string, data: unknown) {
   }
 }
 
-export async function notifyFamilyChanged(familyId: string) {
-  await publish(familyChannel(familyId), "family:changed", null);
+// Algo de la familia cambió: una de sus listas (listId), el calendario o los miembros.
+export async function notifyFamilyChanged(familyId: string, data: { listId?: string; calendar?: boolean } = {}) {
+  await publish(familyChannel(familyId), "family:changed", data);
 }
 
 export async function notifyUserChanged(userId: string, data: { listId?: string } = {}) {

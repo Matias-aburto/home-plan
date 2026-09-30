@@ -2,7 +2,7 @@ import { nanoid } from "nanoid";
 import { db, text, value } from "./client.js";
 import type { ListItem } from "./types.js";
 
-const columns = `id, title, completed, position, location_id, assignee_user_id, created_by,
+const columns = `id, title, completed, position, location_id, assignee_user_id, legacy_assignee, created_by,
   created_at, updated_at, completed_at, archived_at`;
 
 function toItem(row: Record<string, unknown>): ListItem {
@@ -13,6 +13,7 @@ function toItem(row: Record<string, unknown>): ListItem {
     position: Number(row.position || 0),
     locationId: text(row.location_id),
     assigneeUserId: text(row.assignee_user_id),
+    legacyAssignee: text(row.legacy_assignee),
     createdBy: text(row.created_by),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -64,6 +65,7 @@ export async function addListItem(
     position: await nextItemPosition(listId),
     locationId: input.locationId,
     assigneeUserId: input.assigneeUserId,
+    legacyAssignee: null,
     createdBy: input.createdBy,
     createdAt: now,
     updatedAt: now,
@@ -96,13 +98,15 @@ export async function updateListItem(
     ? changes.completed === true && !current.completed ? now : current.completedAt ?? now
     : null;
   await db.execute({
-    sql: `UPDATE list_items SET title = ?, completed = ?, location_id = ?, assignee_user_id = ?,
+    sql: `UPDATE list_items SET title = ?, completed = ?, location_id = ?, assignee_user_id = ?, legacy_assignee = ?,
       updated_at = ?, completed_at = ?, archived_at = NULL WHERE id = ? AND list_id = ?`,
     args: [
       changes.title ?? current.title,
       completed ? 1 : 0,
       value(changes.locationId === undefined ? current.locationId : changes.locationId),
       value(changes.assigneeUserId === undefined ? current.assigneeUserId : changes.assigneeUserId),
+      // Elegir un responsable (o "sin asignar") reemplaza el nombre del modelo anterior.
+      value(changes.assigneeUserId === undefined ? current.legacyAssignee : null),
       now, value(completedAt), itemId, listId
     ]
   });

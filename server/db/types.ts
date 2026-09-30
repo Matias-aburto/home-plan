@@ -59,7 +59,27 @@ export type Family = {
 
 export type ListTable = "shopping_items" | "household_tasks";
 
-export type ListKind = "shopping" | "tasks" | "checklist";
+export type FamilyRole = "owner" | "admin" | "member";
+
+export type FamilySummary = {
+  id: string;
+  name: string;
+  createdAt: string;
+  role: FamilyRole;
+  memberCount: number;
+};
+
+export type FamilyMember = {
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  color: string;
+  role: FamilyRole;
+  joinedAt: string;
+};
+
+export type ListKind ="shopping" | "tasks" | "checklist";
 export type ListAccess = "none" | "viewer" | "editor" | "owner";
 export type SortMode = "custom" | "alpha";
 
@@ -95,6 +115,8 @@ export type ListItem = {
   position: number;
   locationId: string | null;
   assigneeUserId: string | null;
+  // Nombre del responsable en el modelo anterior, hasta vincularlo a un miembro.
+  legacyAssignee: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
