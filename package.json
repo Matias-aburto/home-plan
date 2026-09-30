@@ -9,20 +9,20 @@
     "dev:server": "tsx watch server/index.ts",
     "db:init": "tsx server/init-database.ts",
     "build": "tsc -b && vite build",
+    "vercel-build": "npm run db:init && npm run build",
     "start": "tsx server/index.ts",
     "preview": "vite preview"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
+    "ably": "^2.29.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "idb": "^8.0.3",
     "lucide-react": "^0.468.0",
     "nanoid": "^5.0.9",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

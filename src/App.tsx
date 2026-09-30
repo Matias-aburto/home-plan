@@ -36,7 +36,7 @@ import {
   Users,
   X
 } from "lucide-react";
-import { io } from "socket.io-client";
+import type { Realtime } from "ably";
 import {
   cacheFamily,
   enqueueOperation,
@@ -113,8 +113,6 @@ type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
-
-const socket = io();
 
 class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -297,7 +295,7 @@ export default function App() {
   const [view, setView] = useState<View>("welcome");
   const [loading, setLoading] = useState(Boolean(familyId));
   const [error, setError] = useState("");
-  const [connected, setConnected] = useState(socket.connected);
+  const [connected, setConnected] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -334,12 +332,19 @@ export default function App() {
     }
   }, [familyId]);
 
+  const refreshFamily = useCallback(async () => {
+    if (!familyId) return;
+    if ((await getPendingOperations(familyId)).length > 0) return;
+    try {
+      const freshFamily = normalizeFamily(await api<Family>(`/api/families/${familyId}`));
+      setFamily(freshFamily);
+      await cacheFamily(freshFamily);
+    } catch {
+      // Se reintentará con el próximo aviso o reconexión.
+    }
+  }, [familyId]);
+
   useEffect(() => {
-    const onConnect = () => {
-      setConnected(true);
-      void syncQueue();
-    };
-    const onDisconnect = () => setConnected(false);
     const onOnline = () => {
       setOnline(true);
       void syncQueue();
@@ -348,18 +353,58 @@ export default function App() {
       setOnline(false);
       setConnected(false);
     };
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     void syncQueue();
     return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
   }, [syncQueue]);
+
+  useEffect(() => {
+    if (!familyId) return;
+    let client: Realtime | null = null;
+    let started = false;
+    let cancelled = false;
+
+    // Ably solo avisa que la familia cambió; los datos se vuelven a pedir a la API.
+    async function start() {
+      if (started || cancelled) return;
+      let enabled: boolean;
+      try {
+        enabled = (await api<{ realtime?: boolean }>("/api/health")).realtime !== false;
+      } catch {
+        return;
+      }
+      if (started || cancelled) return;
+      started = true;
+      if (!enabled) {
+        setConnected(true);
+        return;
+      }
+      const Ably = await import("ably");
+      if (cancelled) return;
+      client = new Ably.Realtime({ authUrl: `/api/families/${encodeURIComponent(familyId)}/realtime-token` });
+      client.connection.on((change) => {
+        const isConnected = change.current === "connected";
+        setConnected(isConnected);
+        if (isConnected) void syncQueue().then(refreshFamily);
+      });
+      void client.channels.get(`family:${familyId.toUpperCase()}`).subscribe("family:changed", () => {
+        void refreshFamily();
+      });
+    }
+
+    const onOnline = () => void start();
+    window.addEventListener("online", onOnline);
+    void start();
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", onOnline);
+      client?.close();
+    };
+  }, [familyId, syncQueue, refreshFamily]);
 
   useEffect(() => {
     if (!familyId) return;
@@ -374,14 +419,12 @@ export default function App() {
         const url = new URL(window.location.href);
         url.searchParams.set("familia", nextFamily.id);
         window.history.replaceState({}, "", url);
-        socket.emit("family:join", nextFamily.id);
       })
       .catch(async (requestError: Error) => {
         const cachedFamily = await getCachedFamily<Family>(familyId);
         if (cachedFamily) {
           setFamily(normalizeFamily(cachedFamily));
           setError("");
-          socket.emit("family:join", cachedFamily.id);
           return;
         }
         setError(navigator.onLine ? requestError.message : "Necesitas conectarte una vez antes de usar esta familia sin internet.");
@@ -391,20 +434,6 @@ export default function App() {
         }
       })
       .finally(() => setLoading(false));
-  }, [familyId]);
-
-  useEffect(() => {
-    const updateFamily = async (nextFamily: Family) => {
-      if (nextFamily.id !== familyId) return;
-      if ((await getPendingOperations(familyId)).length > 0) return;
-      const normalizedFamily = normalizeFamily(nextFamily);
-      setFamily(normalizedFamily);
-      await cacheFamily(normalizedFamily);
-    };
-    socket.on("family:updated", updateFamily);
-    return () => {
-      socket.off("family:updated", updateFamily);
-    };
   }, [familyId]);
 
   function enterFamily(nextFamily: Family) {
