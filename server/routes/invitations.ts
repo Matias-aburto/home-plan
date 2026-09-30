@@ -1,7 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import { getMembership, roleAtLeast } from "../db/families.js";
+import { hasAccess, listAccess } from "../auth/access.js";
+import { getListRecord } from "../db/lists.js";
 import {
   acceptFamilyInvitation,
+  acceptListInvitation,
   createFamilyInvitation,
   findUserIdByEmail,
   getInvitation,
@@ -16,6 +19,7 @@ import {
 } from "../db/invitations.js";
 import type { User } from "../db/types.js";
 import { requireMember, currentRole, type FamilyParams } from "../http/family.js";
+import { broadcastList } from "../http/lists.js";
 import { currentUser } from "../http/session.js";
 import { cleanText, oneOf } from "../http/validation.js";
 import { notifyFamilyChanged, notifyUserChanged } from "../realtime.js";
@@ -102,6 +106,10 @@ async function respond(invitation: Invitation | null, user: User, action: "accep
   } else if (invitation.kind === "family") {
     await acceptFamilyInvitation(invitation, user.id);
     await notifyFamilyChanged(invitation.familyId!);
+  } else {
+    await acceptListInvitation(invitation, user.id);
+    const list = await getListRecord(invitation.listId!);
+    if (list) await broadcastList(list);
   }
   await notifyUserChanged(user.id);
   return response.json({ ...publicInvitation(invitation), status: action === "accept" ? "accepted" : "declined" });
@@ -132,13 +140,15 @@ invitationsRouter.post<{ token: string }>("/token/:token/decline", async (reques
   return respond(await getInvitationByToken(request.params.token), currentUser(response), "decline", response);
 });
 
-// Revocar: quien invitó, o el dueño o un admin de la familia.
+// Revocar: quien invitó, un owner/admin de la familia o quien administra la lista.
 invitationsRouter.delete<{ id: string }>("/:id", async (request, response) => {
   const user = currentUser(response);
   const invitation = await getInvitation(request.params.id);
   if (!invitation) return response.status(404).json(invitationNotFound);
   const role = invitation.familyId ? await getMembership(invitation.familyId, user.id) : null;
-  const allowed = invitation.invitedBy === user.id || (role && roleAtLeast(role, "admin"));
+  const list = invitation.listId ? await getListRecord(invitation.listId) : null;
+  const managesList = list ? hasAccess(await listAccess(user, list), "owner") : false;
+  const allowed = invitation.invitedBy === user.id || (role && roleAtLeast(role, "admin")) || managesList;
   if (!allowed) return response.status(404).json(invitationNotFound);
   if (invitation.status === "pending") {
     await setInvitationStatus(invitation.id, "revoked", user.id);

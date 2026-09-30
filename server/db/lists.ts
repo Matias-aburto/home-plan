@@ -28,29 +28,35 @@ export async function getListRecord(listId: string) {
   return result.rows[0] ? toRecord(result.rows[0]) : null;
 }
 
-// Listas que el usuario ve en su menú, en su orden: las propias y las de sus familias.
-// Las compartidas con personas puntuales se suman en la Etapa 5.
+// Listas que el usuario ve en su menú, en su orden: las propias, las de sus familias
+// y las compartidas con él. El acceso es el mayor de esas tres vías (igual que listAccess).
 export async function visibleLists(userId: string): Promise<ListSummary[]> {
   const result = await db.execute({
     sql: `SELECT ${listColumns},
         COALESCE(p.position, 0) AS pref_position,
         COALESCE(p.sort, 'custom') AS pref_sort,
         (SELECT COUNT(*) FROM list_items i WHERE i.list_id = l.id AND i.completed = 0) AS pending_count,
-        m.role AS family_role
+        m.role AS family_role,
+        s.permission AS shared_permission
       FROM lists l
       LEFT JOIN user_list_prefs p ON p.list_id = l.id AND p.user_id = ?
       LEFT JOIN family_members m ON m.family_id = l.family_id AND m.user_id = ?
-      WHERE l.owner_user_id = ? OR m.user_id IS NOT NULL
+      LEFT JOIN list_members s ON s.list_id = l.id AND s.user_id = ?
+      WHERE l.owner_user_id = ? OR m.user_id IS NOT NULL OR s.user_id IS NOT NULL
       ORDER BY pref_position, l.created_at`,
-    args: [userId, userId, userId]
+    args: [userId, userId, userId, userId]
   });
-  return result.rows.map((row) => ({
-    ...toRecord(row),
-    access: row.owner_user_id === userId || row.family_role === "owner" || row.family_role === "admin" ? "owner" : "editor",
-    position: Number(row.pref_position),
-    sort: String(row.pref_sort) as SortMode,
-    pendingCount: Number(row.pending_count)
-  }));
+  return result.rows.map((row) => {
+    const owner = row.owner_user_id === userId || row.family_role === "owner" || row.family_role === "admin";
+    const editor = row.family_role === "member" || row.shared_permission === "editor";
+    return {
+      ...toRecord(row),
+      access: owner ? "owner" : editor ? "editor" : "viewer",
+      position: Number(row.pref_position),
+      sort: String(row.pref_sort) as SortMode,
+      pendingCount: Number(row.pending_count)
+    } satisfies ListSummary;
+  });
 }
 
 export async function listSummary(userId: string, list: ListRecord, access: Exclude<ListAccess, "none">) {
@@ -124,7 +130,29 @@ export async function deleteList(listId: string) {
   await db.batch([
     { sql: "DELETE FROM list_items WHERE list_id = ?", args: [listId] },
     { sql: "DELETE FROM user_list_prefs WHERE list_id = ?", args: [listId] },
+    { sql: "DELETE FROM list_members WHERE list_id = ?", args: [listId] },
+    { sql: "DELETE FROM invitations WHERE list_id = ?", args: [listId] },
     { sql: "DELETE FROM lists WHERE id = ?", args: [listId] }
+  ], "write");
+}
+
+// Cambia el dueño de la lista entre una persona y una familia. Las ubicaciones y los
+// responsables eran del dueño anterior, así que los ítems quedan como generales y sin asignar.
+// Las personas con quienes estaba compartida la siguen viendo.
+export async function moveList(listId: string, target: { ownerUserId: string } | { familyId: string }) {
+  const ownerUserId = "ownerUserId" in target ? target.ownerUserId : null;
+  const familyId = "familyId" in target ? target.familyId : null;
+  await db.batch([
+    {
+      sql: "UPDATE lists SET owner_user_id = ?, family_id = ?, updated_at = ? WHERE id = ?",
+      args: [ownerUserId, familyId, new Date().toISOString(), listId]
+    },
+    {
+      sql: "UPDATE list_items SET location_id = NULL, assignee_user_id = NULL, legacy_assignee = NULL WHERE list_id = ?",
+      args: [listId]
+    },
+    // Quien pasa a ser dueño ya no necesita figurar como invitado.
+    ...(ownerUserId ? [{ sql: "DELETE FROM list_members WHERE list_id = ? AND user_id = ?", args: [listId, ownerUserId] }] : [])
   ], "write");
 }
 

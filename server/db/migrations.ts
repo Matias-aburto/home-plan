@@ -157,6 +157,16 @@ export async function migrate() {
       archived_at TEXT
     )`,
     "CREATE INDEX IF NOT EXISTS idx_list_items_list ON list_items(list_id, completed, archived_at)",
+    // Personas con quienes se compartió una lista puntual, fuera de su dueño o familia.
+    `CREATE TABLE IF NOT EXISTS list_members (
+      list_id TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      permission TEXT NOT NULL CHECK (permission IN ('editor', 'viewer')),
+      added_by TEXT NOT NULL REFERENCES users(id),
+      added_at TEXT NOT NULL,
+      PRIMARY KEY (list_id, user_id)
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_list_members_user ON list_members(user_id)",
     // Preferencias de cada usuario sobre cada lista: orden en su menú y orden de los ítems.
     `CREATE TABLE IF NOT EXISTS user_list_prefs (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

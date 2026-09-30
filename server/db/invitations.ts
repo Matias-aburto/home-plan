@@ -75,25 +75,33 @@ export async function getInvitationByToken(token: string) {
   return result.rows[0] ? toInvitation(result.rows[0]) : null;
 }
 
+type Target = { kind: "family"; familyId: string } | { kind: "list"; listId: string };
+
+function targetColumn(target: Target) {
+  return target.kind === "family"
+    ? { column: "family_id", value: familyKey(target.familyId) }
+    : { column: "list_id", value: target.listId };
+}
+
 // Crea la invitación y revoca la pendiente anterior para el mismo email y destino (reenviar).
-export async function createFamilyInvitation(familyId: string, email: string, role: FamilyRole, invitedBy: string) {
+async function createInvitation(target: Target, email: string, role: string, invitedBy: string) {
   const token = randomBytes(24).toString("base64url");
   const id = nanoid();
-  const key = familyKey(familyId);
+  const { column, value } = targetColumn(target);
   const invitedEmail = normalizeEmail(email);
   const now = new Date();
   await db.batch([
     {
       sql: `UPDATE invitations SET status = 'revoked', responded_at = ?
-        WHERE kind = 'family' AND family_id = ? AND invited_email = ? AND status = 'pending'`,
-      args: [now.toISOString(), key, invitedEmail]
+        WHERE kind = ? AND ${column} = ? AND invited_email = ? AND status = 'pending'`,
+      args: [now.toISOString(), target.kind, value, invitedEmail]
     },
     {
       sql: `INSERT INTO invitations
-        (id, token_hash, kind, family_id, invited_email, offered_role, invited_by, created_at, expires_at)
-        VALUES (?, ?, 'family', ?, ?, ?, ?, ?, ?)`,
+        (id, token_hash, kind, ${column}, invited_email, offered_role, invited_by, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
-        id, hashToken(token), key, invitedEmail, role, invitedBy,
+        id, hashToken(token), target.kind, value, invitedEmail, role, invitedBy,
         now.toISOString(), new Date(now.getTime() + invitationDurationMs).toISOString()
       ]
     }
@@ -101,13 +109,30 @@ export async function createFamilyInvitation(familyId: string, email: string, ro
   return { invitation: (await getInvitation(id))!, token };
 }
 
-export async function pendingFamilyInvitations(familyId: string) {
+export function createFamilyInvitation(familyId: string, email: string, role: FamilyRole, invitedBy: string) {
+  return createInvitation({ kind: "family", familyId }, email, role, invitedBy);
+}
+
+export function createListInvitation(listId: string, email: string, permission: "editor" | "viewer", invitedBy: string) {
+  return createInvitation({ kind: "list", listId }, email, permission, invitedBy);
+}
+
+async function pendingInvitations(target: Target) {
   await expireOld();
+  const { column, value } = targetColumn(target);
   const result = await db.execute({
-    sql: `${selectInvitation} WHERE i.kind = 'family' AND i.family_id = ? AND i.status = 'pending' ORDER BY i.created_at DESC`,
-    args: [familyKey(familyId)]
+    sql: `${selectInvitation} WHERE i.kind = ? AND i.${column} = ? AND i.status = 'pending' ORDER BY i.created_at DESC`,
+    args: [target.kind, value]
   });
   return result.rows.map(toInvitation);
+}
+
+export function pendingFamilyInvitations(familyId: string) {
+  return pendingInvitations({ kind: "family", familyId });
+}
+
+export function pendingListInvitations(listId: string) {
+  return pendingInvitations({ kind: "list", listId });
 }
 
 export async function receivedInvitations(email: string) {
@@ -150,6 +175,22 @@ export async function acceptFamilyInvitation(invitation: Invitation, userId: str
     {
       sql: `INSERT OR IGNORE INTO family_members (family_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)`,
       args: [invitation.familyId, userId, invitation.offeredRole, now]
+    },
+    {
+      sql: "UPDATE invitations SET status = 'accepted', responded_at = ?, responded_by = ? WHERE id = ? AND status = 'pending'",
+      args: [now, userId, invitation.id]
+    }
+  ], "write");
+}
+
+// Acepta: comparte la lista con el permiso ofrecido.
+export async function acceptListInvitation(invitation: Invitation, userId: string) {
+  const now = new Date().toISOString();
+  await db.batch([
+    {
+      sql: `INSERT INTO list_members (list_id, user_id, permission, added_by, added_at) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(list_id, user_id) DO UPDATE SET permission = excluded.permission`,
+      args: [invitation.listId, userId, invitation.offeredRole, invitation.invitedBy, now]
     },
     {
       sql: "UPDATE invitations SET status = 'accepted', responded_at = ?, responded_by = ? WHERE id = ? AND status = 'pending'",

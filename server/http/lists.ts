@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { hasAccess, listAccess } from "../auth/access.js";
+import { listSharedMembers } from "../db/listMembers.js";
 import { getListRecord } from "../db/lists.js";
 import type { ListAccess, ListRecord } from "../db/types.js";
 import { notifyFamilyChanged, notifyUserChanged } from "../realtime.js";
@@ -36,8 +37,14 @@ export function requireAccess(required: Exclude<ListAccess, "none">) {
   };
 }
 
-// Avisa a quienes ven la lista que cambió: al dueño o a toda la familia.
-export async function broadcastList(list: ListRecord) {
-  if (list.ownerUserId) await notifyUserChanged(list.ownerUserId, { listId: list.id });
-  if (list.familyId) await notifyFamilyChanged(list.familyId, { listId: list.id });
+// Avisa a quienes ven la lista que cambió: al dueño o a la familia, y a quienes la tienen compartida.
+// `extraUserIds` cubre a quien acaba de perder el acceso (por ejemplo, al quitarlo).
+export async function broadcastList(list: ListRecord, extraUserIds: string[] = []) {
+  const shared = await listSharedMembers(list.id);
+  const userIds = new Set([...shared.map(({ userId }) => userId), ...extraUserIds]);
+  if (list.ownerUserId) userIds.add(list.ownerUserId);
+  await Promise.all([
+    ...[...userIds].map((userId) => notifyUserChanged(userId, { listId: list.id })),
+    list.familyId ? notifyFamilyChanged(list.familyId, { listId: list.id }) : Promise.resolve()
+  ]);
 }
