@@ -413,6 +413,17 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - Offline de listas personales.
 - **Tests**: matriz de permisos (§3) para owner/none; idempotencia con id del cliente; reorder solo de pendientes.
 - **Listo cuando**: un usuario sin familia usa listas de compras, tareas y checklist, incluso sin conexión.
+- **Resultado** (rama `feature/etapa-2-listas`):
+  - Tablas `lists`, `list_items`, `user_list_prefs`, `places` y `learned_names`. Cambios respecto del §4:
+    - Ubicaciones en `places` (nueva) en vez de modificar `locations`: reconstruir `locations` con claves foráneas activas pondría en null las ubicaciones de todos los ítems existentes. `locations` se migra a `places` al migrar las familias.
+    - Productos aprendidos en `learned_names` con `scope` = `user:<id>` / `family:<id>`.
+    - El orden de los ítems (personalizado/alfabético) es preferencia de cada usuario en `user_list_prefs.sort`; no hay `default_sort` en `lists`.
+  - Borrados explícitos de dependencias (ítems, preferencias, ubicaciones en ítems): no se depende de `ON DELETE` porque `PRAGMA foreign_keys` es por conexión y en Vercel no se garantiza.
+  - `listAccess()` en `server/auth/access.ts` (hoy solo dueño); middleware `loadList` responde 404 sin acceso.
+  - Tiempo real: `GET /api/realtime/token?family=` entrega un token con `user:<id>` (+ la familia actual). Cambios de listas avisan `me:changed { listId }` en el canal del usuario.
+  - Cliente: cola offline global (`src/data/sync.ts`), `MeProvider`, `ConnectionProvider`, `LegacyFamilyProvider`, `AppShell` con menú lateral (listas reordenables, archivadas, familia) y en móvil barra inferior + cajón "Menú". Rutas `/personal`, `/listas/:id`, `/familia`, `/familia/tareas`, `/familia/calendario`, `/familia/unirse`.
+  - `ListPage` genérica por tipo; ajustes de lista (nombre, ícono, color, orden, ubicaciones, archivar, eliminar con confirmación).
+  - **Decisión para la Etapa 3**: migrar ahí mismo las familias por código a listas (adelantando parte de la Etapa 7), para no mantener dos modelos de familia en paralelo.
 
 ### Etapa 3: Familias
 - Tabla `family_members`; crear, renombrar, borrar, salir, transferir, roles.

@@ -53,24 +53,26 @@ export function EntryEditModal({
               autoFocus={!window.matchMedia("(max-width: 720px)").matches}
             />
           </label>
-          <fieldset>
-            <legend>Ubicación</legend>
-            <div className="edit-option-chips">
-              <button type="button" className={!nextLocationId ? "selected" : ""} onClick={() => setNextLocationId("")}>
-                <House size={14} /> General
-              </button>
-              {locations.map((location) => (
-                <button
-                  type="button"
-                  key={location.id}
-                  className={nextLocationId === location.id ? "selected" : ""}
-                  onClick={() => setNextLocationId(location.id)}
-                >
-                  <MapPin size={14} /> {location.name}
+          {locations.length > 0 && (
+            <fieldset>
+              <legend>Ubicación</legend>
+              <div className="edit-option-chips">
+                <button type="button" className={!nextLocationId ? "selected" : ""} onClick={() => setNextLocationId("")}>
+                  <House size={14} /> General
                 </button>
-              ))}
-            </div>
-          </fieldset>
+                {locations.map((location) => (
+                  <button
+                    type="button"
+                    key={location.id}
+                    className={nextLocationId === location.id ? "selected" : ""}
+                    onClick={() => setNextLocationId(location.id)}
+                  >
+                    <MapPin size={14} /> {location.name}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
           {showAssignee && (
             <fieldset>
               <legend>Asignar a</legend>

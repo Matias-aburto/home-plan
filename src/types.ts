@@ -67,8 +67,54 @@ export type User = {
   color: string;
 };
 
+export type ListKind = "shopping" | "tasks" | "checklist";
+export type ListAccess = "viewer" | "editor" | "owner";
+
+export type ListSummary = {
+  id: string;
+  ownerUserId: string | null;
+  familyId: string | null;
+  name: string;
+  kind: ListKind;
+  icon: string;
+  color: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  access: ListAccess;
+  position: number;
+  sort: SortMode;
+  pendingCount: number;
+};
+
+export type ListItem = {
+  id: string;
+  title: string;
+  completed: boolean;
+  position: number;
+  locationId: string | null;
+  assigneeUserId: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  archivedAt: string | null;
+};
+
+export type ListDetail = {
+  list: ListSummary;
+  items: ListItem[];
+  locations: Location[];
+};
+
+export type Me = {
+  user: User;
+  lists: ListSummary[];
+};
+
 export type View = "welcome" | "create" | "join";
-export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId">;
+export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId" | "listId">;
 export type SortMode = "custom" | "alpha";
 
 export type BeforeInstallPromptEvent = Event & {

@@ -13,6 +13,7 @@ export function Onboarding({
   onViewChange,
   onError,
   onEnter,
+  onBack,
   onLogout
 }: {
   view: View;
@@ -23,6 +24,7 @@ export function Onboarding({
   onViewChange: (view: View) => void;
   onError: (message: string) => void;
   onEnter: (family: Family) => void;
+  onBack: () => void;
   onLogout: (everywhere?: boolean) => Promise<void>;
 }) {
   const [name, setName] = useState("");
@@ -75,13 +77,16 @@ export function Onboarding({
           <div className="welcome-content animate-in">
             <div className="eyebrow">Tu hogar, más simple</div>
             <h1>Todo en casa,<br />en un solo lugar.</h1>
-            <p>Listas compartidas para organizarse juntos.</p>
+            <p>Compartan listas de compras, tareas y un calendario con su hogar.</p>
             <div className="welcome-actions">
               <button className="primary-button" onClick={() => onViewChange("create")}>
                 <Users size={19} /> Crear una familia
               </button>
               <button className="secondary-button" onClick={() => onViewChange("join")}>
                 <LogIn size={19} /> Unirme con un código
+              </button>
+              <button className="text-button" onClick={onBack}>
+                Volver a mis listas
               </button>
             </div>
           </div>

@@ -2,15 +2,25 @@ import { openDB, type DBSchema } from "idb";
 
 export type QueuedOperation = {
   id: string;
-  familyId: string;
   url: string;
-  method: "POST" | "PATCH" | "DELETE";
+  method: "POST" | "PATCH" | "PUT" | "DELETE";
   body?: Record<string, unknown>;
+  // Qué hay que recargar cuando la operación se envía.
+  familyId?: string;
+  listId?: string;
   createdAt: string;
 };
 
 interface HomePlanDatabase extends DBSchema {
   families: {
+    key: string;
+    value: { id: string; data: unknown; cachedAt: string };
+  };
+  lists: {
+    key: string;
+    value: { id: string; data: unknown; cachedAt: string };
+  };
+  meta: {
     key: string;
     value: { id: string; data: unknown; cachedAt: string };
   };
@@ -21,30 +31,59 @@ interface HomePlanDatabase extends DBSchema {
   };
 }
 
-const database = openDB<HomePlanDatabase>("casa-offline", 1, {
-  upgrade(db) {
-    db.createObjectStore("families", { keyPath: "id" });
-    const outbox = db.createObjectStore("outbox", { keyPath: "id" });
-    outbox.createIndex("familyId", "familyId");
+const database = openDB<HomePlanDatabase>("casa-offline", 2, {
+  upgrade(db, oldVersion) {
+    if (oldVersion < 1) {
+      db.createObjectStore("families", { keyPath: "id" });
+      const outbox = db.createObjectStore("outbox", { keyPath: "id" });
+      outbox.createIndex("familyId", "familyId");
+    }
+    if (oldVersion < 2) {
+      db.createObjectStore("lists", { keyPath: "id" });
+      db.createObjectStore("meta", { keyPath: "id" });
+    }
   }
 });
 
+type CacheStore = "families" | "lists" | "meta";
+
+async function cachePut(store: CacheStore, id: string, data: unknown) {
+  await (await database).put(store, { id, data, cachedAt: new Date().toISOString() });
+}
+
+async function cacheGet<T>(store: CacheStore, id: string) {
+  return (await (await database).get(store, id))?.data as T | undefined;
+}
+
 export async function cacheFamily<T extends { id: string }>(family: T) {
-  await (await database).put("families", {
-    id: family.id,
-    data: family,
-    cachedAt: new Date().toISOString()
-  });
+  await cachePut("families", family.id, family);
 }
 
 export async function getCachedFamily<T>(familyId: string) {
-  const cached = await (await database).get("families", familyId.toUpperCase());
-  return cached?.data as T | undefined;
+  return cacheGet<T>("families", familyId.toUpperCase());
 }
 
-export async function enqueueOperation(
-  operation: Omit<QueuedOperation, "id" | "createdAt">
-) {
+export async function cacheList<T extends { list: { id: string } }>(detail: T) {
+  await cachePut("lists", detail.list.id, detail);
+}
+
+export async function getCachedList<T>(listId: string) {
+  return cacheGet<T>("lists", listId);
+}
+
+export async function removeCachedList(listId: string) {
+  await (await database).delete("lists", listId);
+}
+
+export async function cacheMeta(id: string, data: unknown) {
+  await cachePut("meta", id, data);
+}
+
+export async function getCachedMeta<T>(id: string) {
+  return cacheGet<T>("meta", id);
+}
+
+export async function enqueueOperation(operation: Omit<QueuedOperation, "id" | "createdAt">) {
   const queued: QueuedOperation = {
     ...operation,
     id: crypto.randomUUID(),
@@ -61,13 +100,10 @@ export async function removeOperation(id: string) {
 // Al cerrar sesión no deben quedar datos ni cambios pendientes en el dispositivo.
 export async function clearOfflineData() {
   const db = await database;
-  await Promise.all([db.clear("families"), db.clear("outbox")]);
+  await Promise.all([db.clear("families"), db.clear("lists"), db.clear("meta"), db.clear("outbox")]);
 }
 
-export async function getPendingOperations(familyId?: string) {
-  const db = await database;
-  const operations = familyId
-    ? await db.getAllFromIndex("outbox", "familyId", familyId.toUpperCase())
-    : await db.getAll("outbox");
+export async function getPendingOperations() {
+  const operations = await (await database).getAll("outbox");
   return operations.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
