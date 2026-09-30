@@ -1,0 +1,174 @@
+import { mkdir, readFile } from "node:fs/promises";
+import path from "node:path";
+import { databaseUrl, db, localDataDirectory, normalizeText, value } from "./client.js";
+import { createFamily, getFamily } from "./families.js";
+import type { Family, HouseholdTask, ListTable, ShoppingItem } from "./types.js";
+
+type LegacyDatabase = { families?: Record<string, Partial<Family>> };
+
+// Crea o actualiza el esquema. Es idempotente: se ejecuta en cada deploy y al iniciar el servidor local.
+export async function migrate() {
+  if (databaseUrl.startsWith("file:")) await mkdir(localDataDirectory, { recursive: true });
+  await db.batch([
+    "PRAGMA foreign_keys = ON",
+    `CREATE TABLE IF NOT EXISTS families (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS locations (
+      id TEXT PRIMARY KEY,
+      family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      UNIQUE(family_id, name)
+    )`,
+    `CREATE TABLE IF NOT EXISTS shopping_items (
+      id TEXT PRIMARY KEY,
+      family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
+      completed INTEGER NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT,
+      archived_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS household_tasks (
+      id TEXT PRIMARY KEY,
+      family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      assignee TEXT,
+      location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
+      completed INTEGER NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT,
+      archived_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS learned_products (
+      family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      name_key TEXT NOT NULL,
+      name TEXT NOT NULL,
+      uses INTEGER NOT NULL DEFAULT 1,
+      last_used_at TEXT NOT NULL,
+      PRIMARY KEY(family_id, name_key)
+    )`,
+    `CREATE TABLE IF NOT EXISTS calendar_entries (
+      id TEXT PRIMARY KEY,
+      family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      event_date TEXT NOT NULL,
+      event_time TEXT,
+      recurrence TEXT NOT NULL DEFAULT 'none',
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_items_family ON shopping_items(family_id, completed, archived_at)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_family ON household_tasks(family_id, completed, archived_at)",
+    "CREATE INDEX IF NOT EXISTS idx_calendar_family_date ON calendar_entries(family_id, event_date)"
+  ], "write");
+
+  const taskColumns = await db.execute("PRAGMA table_info(household_tasks)");
+  if (!taskColumns.rows.some((column) => String(column.name) === "location_id")) {
+    await db.execute(
+      "ALTER TABLE household_tasks ADD COLUMN location_id TEXT REFERENCES locations(id) ON DELETE SET NULL"
+    );
+  }
+  await ensurePositionColumn("shopping_items");
+  await ensurePositionColumn("household_tasks");
+
+  await importLegacyData();
+  await backfillPositions("shopping_items");
+  await backfillPositions("household_tasks");
+  if (!(await getFamily("CASA"))) await createFamily("Familia de prueba", "CASA");
+}
+
+async function ensurePositionColumn(table: ListTable) {
+  const columns = await db.execute(`PRAGMA table_info(${table})`);
+  if (columns.rows.some((column) => String(column.name) === "position")) return;
+  await db.execute(`ALTER TABLE ${table} ADD COLUMN position INTEGER NOT NULL DEFAULT 0`);
+}
+
+async function backfillPositions(table: ListTable) {
+  const families = await db.execute("SELECT id FROM families");
+  for (const family of families.rows) {
+    const pending = await db.execute({
+      sql: `SELECT id, position FROM ${table} WHERE family_id = ? AND completed = 0 ORDER BY created_at DESC`,
+      args: [String(family.id)]
+    });
+    if (pending.rows.length < 2) continue;
+    const positions = new Set(pending.rows.map((row) => Number(row.position)));
+    if (positions.size > 1) continue;
+    for (const [index, row] of pending.rows.entries()) {
+      await db.execute({
+        sql: `UPDATE ${table} SET position = ? WHERE id = ?`,
+        args: [index, String(row.id)]
+      });
+    }
+  }
+}
+
+// Importa el antiguo data/db.json la primera vez que se usa la base.
+async function importLegacyData() {
+  const count = await db.execute("SELECT COUNT(*) AS total FROM families");
+  if (Number(count.rows[0]?.total || 0) > 0) return;
+
+  try {
+    const legacy = JSON.parse(await readFile(path.join(localDataDirectory, "db.json"), "utf8")) as LegacyDatabase;
+    for (const [id, rawFamily] of Object.entries(legacy.families || {})) {
+      const createdAt = rawFamily.createdAt || new Date().toISOString();
+      await db.execute({
+        sql: "INSERT OR IGNORE INTO families (id, name, created_at) VALUES (?, ?, ?)",
+        args: [id, rawFamily.name || "Mi familia", createdAt]
+      });
+      for (const location of rawFamily.locations || []) {
+        await db.execute({
+          sql: "INSERT OR IGNORE INTO locations (id, family_id, name) VALUES (?, ?, ?)",
+          args: [location.id, id, location.name]
+        });
+      }
+      for (const item of rawFamily.items || []) await insertLegacyItem(id, item);
+      for (const task of rawFamily.tasks || []) await insertLegacyTask(id, task);
+      for (const product of rawFamily.learnedProducts || []) {
+        await db.execute({
+          sql: `INSERT OR IGNORE INTO learned_products
+            (family_id, name_key, name, uses, last_used_at) VALUES (?, ?, ?, ?, ?)`,
+          args: [id, normalizeText(product.name), product.name, product.uses, product.lastUsedAt]
+        });
+      }
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+async function insertLegacyItem(familyId: string, item: ShoppingItem) {
+  const updatedAt = item.updatedAt || item.createdAt;
+  await db.execute({
+    sql: `INSERT OR IGNORE INTO shopping_items
+      (id, family_id, name, location_id, completed, position, created_at, updated_at, completed_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      item.id, familyId, item.name, value(item.locationId), item.completed ? 1 : 0, item.position || 0,
+      item.createdAt, updatedAt, value(item.completedAt || (item.completed ? updatedAt : null)), value(item.archivedAt)
+    ]
+  });
+}
+
+async function insertLegacyTask(familyId: string, task: HouseholdTask) {
+  const updatedAt = task.updatedAt || task.createdAt;
+  await db.execute({
+    sql: `INSERT OR IGNORE INTO household_tasks
+      (id, family_id, title, assignee, location_id, completed, position, created_at, updated_at, completed_at, archived_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      task.id, familyId, task.title, value(task.assignee), value(task.locationId), task.completed ? 1 : 0,
+      task.position || 0,
+      task.createdAt, updatedAt, value(task.completedAt || (task.completed ? updatedAt : null)), value(task.archivedAt)
+    ]
+  });
+}

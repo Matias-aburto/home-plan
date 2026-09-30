@@ -1,7 +1,7 @@
 import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { app } from "./app.js";
-import { HomeRepository } from "./database.js";
+import { migrate } from "./db/migrations.js";
 
 type FamilyResponse = {
   id: string;
@@ -15,7 +15,7 @@ type FamilyResponse = {
 const api = request(app);
 
 beforeAll(async () => {
-  await new HomeRepository().initialize();
+  await migrate();
 });
 
 async function createFamily(name = "Familia test") {
