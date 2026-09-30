@@ -1,30 +1,4 @@
-export type ShoppingItem = {
-  id: string;
-  name: string;
-  locationId: string | null;
-  completed: boolean;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
-  completedAt: string | null;
-  archivedAt: string | null;
-};
-
 export type Location = { id: string; name: string };
-export type Assignee = "Matías" | "Francisca";
-
-export type HouseholdTask = {
-  id: string;
-  title: string;
-  assignee: Assignee | null;
-  locationId: string | null;
-  completed: boolean;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
-  completedAt: string | null;
-  archivedAt: string | null;
-};
 
 export type CalendarEntry = {
   id: string;
@@ -39,25 +13,6 @@ export type CalendarEntry = {
 };
 
 export type CalendarEntryInput = Pick<CalendarEntry, "title" | "kind" | "date" | "time" | "recurrence" | "notes">;
-
-export type LearnedProduct = {
-  name: string;
-  uses: number;
-  lastUsedAt: string;
-};
-
-export type Family = {
-  id: string;
-  name: string;
-  createdAt: string;
-  locations: Location[];
-  learnedProducts: LearnedProduct[];
-  items: ShoppingItem[];
-  tasks: HouseholdTask[];
-  calendarEntries: CalendarEntry[];
-};
-
-export type ListTable = "shopping_items" | "household_tasks";
 
 export type FamilyRole = "owner" | "admin" | "member";
 

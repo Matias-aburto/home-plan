@@ -356,8 +356,6 @@ textarea:focus-visible {
   box-shadow: 0 3px 10px rgba(40, 52, 46, .12);
 }
 
-.avatar-matias { background: #477a67; }
-.avatar-francisca { background: #bc745e; }
 
 .connection-status {
   display: flex;

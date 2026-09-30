@@ -1,6 +1,6 @@
 # Plan: cuentas, listas personalizadas y familias
 
-Estado: **en desarrollo**. Etapas 0A y 0 completadas. Siguiente: Etapa 1 (login con Google).
+Estado: **listo para publicar**. Etapas 0A a 7 completadas en ramas locales encadenadas (`feature/etapa-0-preparacion` … `feature/etapa-7-cierre`); falta el merge a `master` y el deploy.
 
 ## 1. Objetivo
 
@@ -386,7 +386,7 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
   - `npm test`: tests de API con base libSQL temporal (`server/app.test.ts`) y unitarios de orden de listas y calendario (`src/lib/*.test.ts`).
   - Ajuste: la gestión de ubicaciones recarga la familia al guardar, sin depender del tiempo real.
 
-### Etapa 1: Login con Google
+### Etapa 1: Login con Google ✅
 - Tablas `users`, `sessions`; `google-auth-library`; middleware `requireUser`.
 - `POST /api/auth/google`, `logout`, `logout-all`, `GET/PATCH /api/me`.
 - `LoginPage`, `AuthProvider`, guardas de ruta.
@@ -405,7 +405,7 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
   - El token de Ably sigue siendo por familia; el canal `user:<id>` se agrega cuando haga falta (Etapa 4).
   - Pendiente del dueño: crear la credencial OAuth y cargar `GOOGLE_CLIENT_ID` en Vercel.
 
-### Etapa 2: Listas personales
+### Etapa 2: Listas personales ✅
 - Tablas `lists`, `list_items`, `user_list_prefs`; `listAccess()`.
 - API de listas e ítems (§6), reorder, archivado de completados por lista (misma regla actual: 5 últimos en 24 h).
 - UI: espacio Personal, sidebar dinámico, Nueva lista, ajustes de lista, `ListPage` genérica por tipo.
@@ -425,7 +425,7 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
   - `ListPage` genérica por tipo; ajustes de lista (nombre, ícono, color, orden, ubicaciones, archivar, eliminar con confirmación).
   - **Decisión para la Etapa 3**: migrar ahí mismo las familias por código a listas (adelantando parte de la Etapa 7), para no mantener dos modelos de familia en paralelo.
 
-### Etapa 3: Familias
+### Etapa 3: Familias ✅
 - Tabla `family_members`; crear, renombrar, borrar, salir, transferir, roles.
 - Listas de familia; calendario y ubicaciones con permisos.
 - Selector de espacio; responsable = miembros reales.
@@ -443,7 +443,7 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
   - Cliente: rutas `/familias/nueva`, `/familias/:id`, `/familias/:id/calendario`, `/familias/:id/ajustes`. Menú con un bloque por espacio (Mis listas y cada familia). Tareas de familia con responsable (formulario, filtros, edición).
   - Pendiente para la Etapa 4: invitar personas (hoy solo se entra a una familia creándola o reclamándola).
 
-### Etapa 4: Invitaciones
+### Etapa 4: Invitaciones ✅
 - Tabla `invitations`; crear, listar, revocar, aceptar, rechazar, vencer (se marca `expired` al consultar).
 - Bandeja, campana con contador, `InvitationLanding` para `/invitacion/:token`.
 - Invitaciones a emails sin cuenta aparecen en el primer login.
@@ -457,7 +457,7 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
   - Tiempo real: se reutiliza `me:changed` (al invitado, si ya tiene cuenta) y `family:changed`; al aceptar cambian las familias del usuario y el cliente pide un token nuevo con el canal de la familia (no hizo falta un mensaje `invitation:*` aparte).
   - Cliente: campana con contador en la cabecera, `/invitaciones` (bandeja), `/invitacion/:token` (el login conserva la URL), y en los ajustes de la familia: invitar, copiar/compartir enlace, reenviar y anular pendientes.
 
-### Etapa 5: Compartir listas con personas puntuales
+### Etapa 5: Compartir listas con personas puntuales ✅
 - Tabla `list_members`; permisos `editor`/`viewer`; invitaciones tipo `list`.
 - Sección "Compartidas conmigo"; `ShareListModal`; dejar una lista compartida.
 - UI de solo lectura para `viewer` (sin swipe, sin formulario de agregar).
@@ -472,7 +472,7 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
   - Tiempo real: se avisa por el canal de cada usuario con acceso (sin canales `list:<id>`).
   - Cliente: espacio "Compartidas conmigo" (`/compartidas`), botón Compartir en cada lista, aviso de solo lectura para lectores, "Mover a" en los ajustes de la lista. `InviteManager` es común a familias y listas.
 
-### Etapa 6: Tiempo real y offline completos
+### Etapa 6: Tiempo real y offline completos ✅
 - Canales y mensajes por lista (§7) reemplazando el aviso por familia de la Etapa 0A; token por sesión con capabilities por canal.
 - IndexedDB v2, cola por usuario, manejo de 401/404, logout limpia datos.
 - **Listo cuando**: dos dispositivos con distintos usuarios ven solo lo suyo en tiempo real, y offline sigue funcionando como hoy.
@@ -486,12 +486,13 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
   - Tests de la cola en `src/data/sync.test.ts` (happy-dom + fake-indexeddb).
   - Probado en el navegador: cambios sin conexión, envío al volver, cambio rechazado con aviso y arranque desde la caché con el servidor caído.
 
-### Etapa 7: Migración y retiro del modelo antiguo
+### Etapa 7: Migración y retiro del modelo antiguo ✅
 - Script de migración (§9) probado primero contra una copia de la base de Turso.
 - Reclamar familia y vincular responsables antiguos.
 - Quitar onboarding por código, rutas antiguas, familia `CASA` automática.
 - Actualizar `README.md` y variables de entorno en Vercel.
 - **Listo cuando**: los datos actuales están en listas nuevas, reclamados, y ya no se puede entrar solo con el código.
+- **Resultado**: la migración y el reclamo se hicieron en la Etapa 3. En la rama `feature/etapa-7-cierre`: README reescrito, tipos del modelo anterior movidos a `migrations.ts` (solo sirven para importar el antiguo `db.json`), limpieza de estilos sin uso y verificación con `vercel build`. Las tablas antiguas (`shopping_items`, `household_tasks`, `locations`, `learned_products`) siguen como respaldo; se pueden borrar en una versión posterior, tras confirmar en producción.
 
 ## 11. Riesgos y mitigaciones
 

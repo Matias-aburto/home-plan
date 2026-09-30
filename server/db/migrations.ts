@@ -2,7 +2,54 @@ import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { databaseUrl, db, localDataDirectory, normalizeText, value } from "./client.js";
 import { migrateLegacyFamilies, systemUserId } from "./legacyMigration.js";
-import type { Family, HouseholdTask, ListTable, ShoppingItem } from "./types.js";
+import type { Location } from "./types.js";
+
+// Modelo anterior (familias por código): solo para importar el antiguo data/db.json.
+type ShoppingItem = {
+  id: string;
+  name: string;
+  locationId: string | null;
+  completed: boolean;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  archivedAt: string | null;
+};
+
+type Assignee = "Matías" | "Francisca";
+
+type HouseholdTask = {
+  id: string;
+  title: string;
+  assignee: Assignee | null;
+  locationId: string | null;
+  completed: boolean;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  archivedAt: string | null;
+};
+
+type LearnedProduct = {
+  name: string;
+  uses: number;
+  lastUsedAt: string;
+};
+
+type Family = {
+  id: string;
+  name: string;
+  createdAt: string;
+  locations: Location[];
+  learnedProducts: LearnedProduct[];
+  items: ShoppingItem[];
+  tasks: HouseholdTask[];
+  calendarEntries: unknown[];
+};
+
+type ListTable = "shopping_items" | "household_tasks";
 
 type LegacyDatabase = { families?: Record<string, Partial<Family>> };
 
