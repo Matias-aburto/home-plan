@@ -5,7 +5,6 @@ import { createFamily, getFamily } from "../db/families.js";
 import { getLearnedProducts } from "../db/items.js";
 import { familyNotFound, requireFamily, type FamilyParams } from "../http/family.js";
 import { cleanText } from "../http/validation.js";
-import { createFamilyTokenRequest } from "../realtime.js";
 
 export const familiesRouter = Router();
 
@@ -19,12 +18,6 @@ familiesRouter.get<FamilyParams>("/:id", async (request, response) => {
   const family = await getFamily(request.params.id);
   if (!family) return response.status(404).json(familyNotFound);
   return response.json(family);
-});
-
-familiesRouter.get<FamilyParams>("/:id/realtime-token", requireFamily, async (request, response) => {
-  const tokenRequest = await createFamilyTokenRequest(request.params.id);
-  if (!tokenRequest) return response.status(503).json({ message: "El tiempo real no está configurado." });
-  return response.json(tokenRequest);
 });
 
 // Combina el catálogo base con lo que la familia ya compró antes (esto último pesa más).

@@ -18,6 +18,21 @@ export function readIdList(input: unknown) {
   )];
 }
 
+export const listKinds = ["shopping", "tasks", "checklist"] as const;
+export const listIcons = [
+  "shopping-basket", "list-todo", "list-checks", "house", "gift", "plane",
+  "utensils", "book-open", "dumbbell", "heart", "star", "briefcase", "paw-print", "baby"
+] as const;
+export const listColors = ["green", "blue", "amber", "rose", "violet", "teal"] as const;
+
+export function oneOf<T extends string>(options: readonly T[], input: unknown): T | null {
+  return typeof input === "string" && (options as readonly string[]).includes(input) ? input as T : null;
+}
+
+export function readSortMode(input: unknown) {
+  return oneOf(["custom", "alpha"] as const, input);
+}
+
 export function readAssignee(input: unknown): Assignee | null {
   return input === "Matías" || input === "Francisca" ? input : null;
 }

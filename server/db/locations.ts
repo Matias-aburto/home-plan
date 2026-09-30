@@ -37,10 +37,13 @@ export async function renameLocation(familyId: string, locationId: string, name:
   return result.rowsAffected > 0;
 }
 
+// Los ítems que la usaban quedan como generales (explícito: ver deletePlace en places.ts).
 export async function deleteLocation(familyId: string, locationId: string) {
-  const result = await db.execute({
-    sql: "DELETE FROM locations WHERE id = ? AND family_id = ?",
-    args: [locationId, familyKey(familyId)]
-  });
-  return result.rowsAffected > 0;
+  if (!(await validLocationId(familyId, locationId))) return false;
+  await db.batch([
+    { sql: "UPDATE shopping_items SET location_id = NULL WHERE location_id = ?", args: [locationId] },
+    { sql: "UPDATE household_tasks SET location_id = NULL WHERE location_id = ?", args: [locationId] },
+    { sql: "DELETE FROM locations WHERE id = ?", args: [locationId] }
+  ], "write");
+  return true;
 }

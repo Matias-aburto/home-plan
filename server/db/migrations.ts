@@ -86,6 +86,65 @@ export async function migrate() {
       user_agent TEXT
     )`,
     "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
+    // Listas nuevas: el dueño es un usuario (personal) o una familia (compartida), nunca ambos.
+    `CREATE TABLE IF NOT EXISTS lists (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('shopping', 'tasks', 'checklist')),
+      icon TEXT NOT NULL,
+      color TEXT NOT NULL,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      archived_at TEXT,
+      CHECK ((owner_user_id IS NULL) <> (family_id IS NULL))
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_lists_owner ON lists(owner_user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_lists_family ON lists(family_id)",
+    // Ubicaciones con el mismo dueño que las listas (reemplazan a `locations` al migrar las familias).
+    `CREATE TABLE IF NOT EXISTS places (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      CHECK ((owner_user_id IS NULL) <> (family_id IS NULL))
+    )`,
+    `CREATE TABLE IF NOT EXISTS list_items (
+      id TEXT PRIMARY KEY,
+      list_id TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      completed INTEGER NOT NULL DEFAULT 0,
+      position INTEGER NOT NULL DEFAULT 0,
+      location_id TEXT REFERENCES places(id) ON DELETE SET NULL,
+      assignee_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      legacy_assignee TEXT,
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT,
+      archived_at TEXT
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_list_items_list ON list_items(list_id, completed, archived_at)",
+    // Preferencias de cada usuario sobre cada lista: orden en su menú y orden de los ítems.
+    `CREATE TABLE IF NOT EXISTS user_list_prefs (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      list_id TEXT NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL DEFAULT 0,
+      sort TEXT NOT NULL DEFAULT 'custom' CHECK (sort IN ('custom', 'alpha')),
+      PRIMARY KEY (user_id, list_id)
+    )`,
+    // Productos usados antes, por dueño: "user:<id>" o "family:<id>".
+    `CREATE TABLE IF NOT EXISTS learned_names (
+      scope TEXT NOT NULL,
+      name_key TEXT NOT NULL,
+      name TEXT NOT NULL,
+      uses INTEGER NOT NULL DEFAULT 1,
+      last_used_at TEXT NOT NULL,
+      PRIMARY KEY (scope, name_key)
+    )`,
     "CREATE INDEX IF NOT EXISTS idx_items_family ON shopping_items(family_id, completed, archived_at)",
     "CREATE INDEX IF NOT EXISTS idx_tasks_family ON household_tasks(family_id, completed, archived_at)",
     "CREATE INDEX IF NOT EXISTS idx_calendar_family_date ON calendar_entries(family_id, event_date)"

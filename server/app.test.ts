@@ -35,9 +35,7 @@ describe("salud y tiempo real", () => {
   });
 
   it("no entrega token de tiempo real sin clave de Ably", async () => {
-    const family = await createFamily();
-    await api.get(`/api/families/${family.id}/realtime-token`).expect(503);
-    await api.get("/api/families/NOEXISTE/realtime-token").expect(404);
+    await api.get("/api/realtime/token").expect(503);
   });
 });
 

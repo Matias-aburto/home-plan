@@ -1,13 +1,16 @@
 import { Router } from "express";
+import { setListOrder, visibleLists } from "../db/lists.js";
 import { updateUser, userColors } from "../db/users.js";
 import { currentUser } from "../http/session.js";
-import { cleanText } from "../http/validation.js";
+import { cleanText, readIdList } from "../http/validation.js";
+import { notifyUserChanged } from "../realtime.js";
 
 export const meRouter = Router();
 
-// Arranque de la app. Familias, listas e invitaciones se agregan en las próximas etapas.
-meRouter.get("/", (_request, response) => {
-  response.json({ user: currentUser(response), families: [], lists: [], invitations: [] });
+// Arranque de la app. Familias e invitaciones se agregan en las próximas etapas.
+meRouter.get("/", async (_request, response) => {
+  const user = currentUser(response);
+  response.json({ user, families: [], lists: await visibleLists(user.id), invitations: [] });
 });
 
 meRouter.patch("/", async (request, response) => {
@@ -20,4 +23,14 @@ meRouter.patch("/", async (request, response) => {
   }
   const user = await updateUser(currentUser(response).id, { name, color });
   return response.json({ user });
+});
+
+// Orden de las listas en el menú del usuario.
+meRouter.put("/list-order", async (request, response) => {
+  const ids = readIdList(request.body.ids);
+  if (ids.length === 0) return response.status(400).json({ message: "Indica el nuevo orden." });
+  const user = currentUser(response);
+  await setListOrder(user.id, ids);
+  await notifyUserChanged(user.id);
+  return response.json({ ok: true });
 });
