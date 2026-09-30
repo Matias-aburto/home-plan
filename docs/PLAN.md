@@ -1,6 +1,6 @@
 # Plan: cuentas, listas personalizadas y familias
 
-Estado: **en desarrollo**. Etapa 0A completada (producción en Vercel + Ably). Siguiente: Etapa 0.
+Estado: **en desarrollo**. Etapas 0A y 0 completadas. Siguiente: Etapa 1 (login con Google).
 
 ## 1. Objetivo
 
@@ -372,13 +372,19 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - **Requisito externo**: cuenta de Vercel conectada al repo de GitHub y app de Ably con una API key (permisos publish + subscribe).
 - **Listo cuando**: la app corre en Vercel sin cold start perceptible, dos dispositivos se sincronizan en tiempo real y el modo offline sigue funcionando.
 
-### Etapa 0: Preparación
+### Etapa 0: Preparación ✅
 - Dividir `App.tsx` según la estructura de §8 sin cambiar comportamiento.
 - Dividir `server/index.ts` en routers (`routes/items.ts`, `routes/tasks.ts`, …) y `HomeRepository` por dominio.
 - Agregar `react-router`.
 - Agregar `vitest` + `supertest`; base de datos libSQL en memoria (`file::memory:`) para tests.
 - Tests de humo de la API actual.
 - **Listo cuando**: la app se comporta igual y `npm test` pasa.
+- **Resultado**:
+  - Servidor: `server/app.ts` monta routers por dominio (`server/routes/`), con validaciones en `server/http/` y acceso a datos en `server/db/` (un módulo por dominio + `migrations.ts`).
+  - Cliente: `src/App.tsx` solo orquesta sesión, sincronización y tiempo real; el resto vive en `api/`, `lib/`, `hooks/`, `components/`, `onboarding/`, `family/`, `shopping/`, `tasks/` y `calendar/`.
+  - Las secciones tienen URL propia (`/`, `/tareas`, `/calendario`) con `react-router`; funcionan el botón atrás y recargar.
+  - `npm test`: tests de API con base libSQL temporal (`server/app.test.ts`) y unitarios de orden de listas y calendario (`src/lib/*.test.ts`).
+  - Ajuste: la gestión de ubicaciones recarga la familia al guardar, sin depender del tiempo real.
 
 ### Etapa 1: Login con Google
 - Tablas `users`, `sessions`; `google-auth-library`; middleware `requireUser`.

@@ -11,6 +11,12 @@ npm run dev
 
 La web queda en `http://localhost:5173` y el servidor en `http://localhost:3001`.
 
+Para correr los tests:
+
+```bash
+npm test
+```
+
 Para probar desde un teléfono en la misma red, abre `http://IP-DE-TU-PC:5173`. Vite acepta conexiones de red y redirige la API al servidor local.
 
 En desarrollo se usa una base libSQL local en `data/home-plan.db`. Si existe el antiguo `data/db.json`, sus datos se importan automáticamente.
