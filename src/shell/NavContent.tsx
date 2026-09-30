@@ -42,7 +42,7 @@ function SpaceSection({
       </div>
       {space.lists.length === 0 && space.key === "personal" ? (
         <button className="nav-item nav-new-list" onClick={() => onNewList(null)}>
-          <Plus size={18} />
+          <span className="nav-icon"><Plus size={17} /></span>
           <span>Crear mi primera lista</span>
         </button>
       ) : (
@@ -92,7 +92,7 @@ export function NavContent({ onNavigate, onNewList }: { onNavigate?: () => void;
       ))}
       <div className="nav-section">
         <Link className="nav-item nav-family-link" to="/familias/nueva" onClick={onNavigate}>
-          <Users size={18} />
+          <span className="nav-icon"><Users size={17} /></span>
           <span>{families.length > 0 ? "Crear o recuperar otra familia" : "Crear o recuperar una familia"}</span>
         </Link>
       </div>

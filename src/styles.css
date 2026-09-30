@@ -2794,3 +2794,33 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
   border-radius: 8px;
   cursor: pointer;
 }
+
+/* Ajustes de interfaz */
+
+/* Íconos del menú que no son listas: mismo ancho que el recuadro de las listas. */
+.nav-icon {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+/* El tirador de arrastre aparece sobre el contador al pasar el mouse: no hace falta reservarle espacio. */
+.nav-row .nav-item { padding-right: 13px; }
+.nav-row .drag-handle { background: #e9ebe5; }
+
+/* Muestras de color con el tono principal, no el fondo claro. */
+.color-picker button[class*="list-color-"] { background: currentColor; }
+.color-picker button[class*="list-color-"] svg { color: #fff; }
+.color-picker button.selected { box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor; border-color: transparent; }
+
+/* En formularios en línea, los selectores no compiten en ancho con el campo principal. */
+.inline-form select { flex: 0 1 180px; }
+
+@media (max-width: 720px) {
+  .list-heading-actions { flex-direction: row; align-items: center; padding-top: 6px; }
+  .content-heading:has(.list-heading-actions) { align-items: center; }
+}
+
+.list-settings-sort + .list-move { margin-top: 0; padding-top: 0; border-top: 0; }

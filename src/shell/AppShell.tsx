@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation } from "react-router";
 import { AccountMenu, UserAvatar } from "../components/AccountMenu";
 import { useConnection } from "../data/ConnectionProvider";
 import { useMe } from "../data/MeProvider";
+import { Loading } from "../components/Loading";
 import { useFamilyDetail } from "../family/useFamilyDetail";
 import { NewListModal } from "../lists/NewListModal";
 import type { User } from "../types";
@@ -24,8 +25,8 @@ export function AppShell({
   onLogout: (everywhere?: boolean) => Promise<void>;
 }) {
   const { pathname } = useLocation();
-  const { online, connected, pendingCount, notice, dismissNotice } = useConnection();
-  const { invitations } = useMe();
+  const { online, connected, everConnected, pendingCount, notice, dismissNotice } = useConnection();
+  const { invitations, loaded } = useMe();
   const { activeSpace, activeKey } = useNavigation();
   const { detail: familyDetail } = useFamilyDetail(activeSpace.familyId);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -40,6 +41,7 @@ export function AppShell({
   // En móvil la barra inferior muestra las primeras entradas del espacio actual y el menú completo.
   const barEntries = [...activeSpace.lists, ...activeSpace.links.slice(0, 1)].slice(0, 3);
   const members = familyDetail?.members ?? [];
+  if (!loaded) return <Loading />;
 
   return (
     <main className="app-shell">
@@ -79,7 +81,7 @@ export function AppShell({
               ? `Sin conexión${pendingCount ? ` · ${pendingCount} pendiente${pendingCount === 1 ? "" : "s"}` : ""}`
               : pendingCount
                 ? `Sincronizando · ${pendingCount}`
-                : connected ? "Sincronizado" : "Reconectando"}
+                : connected ? "Sincronizado" : everConnected ? "Reconectando" : "Conectando"}
           </span>
           {invitations.length > 0 && (
             <Link className="invitations-button" to="/invitaciones" aria-label={`${invitations.length} ${invitations.length === 1 ? "invitación pendiente" : "invitaciones pendientes"}`}>

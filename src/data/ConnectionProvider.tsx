@@ -8,6 +8,8 @@ import { emitSyncEvent, flushQueue, onSyncEvent, syncEvents } from "./sync";
 type Connection = {
   online: boolean;
   connected: boolean;
+  // Si ya hubo conexión alguna vez en esta sesión ("Reconectando" en vez de "Conectando").
+  everConnected: boolean;
   pendingCount: number;
   // Aviso para el usuario sobre cambios que no se pudieron guardar.
   notice: string;
@@ -15,7 +17,7 @@ type Connection = {
 };
 
 const Context = createContext<Connection>({
-  online: true, connected: false, pendingCount: 0, notice: "", dismissNotice: () => undefined
+  online: true, connected: false, everConnected: false, pendingCount: 0, notice: "", dismissNotice: () => undefined
 });
 
 export const noticeKey = "casa:notice";
@@ -26,6 +28,10 @@ const retryIntervalMs = 30_000;
 export function ConnectionProvider({ user, familyIds, children }: { user: User; familyIds: string[]; children: ReactNode }) {
   const [online, setOnline] = useState(navigator.onLine);
   const [connected, setConnected] = useState(false);
+  const [everConnected, setEverConnected] = useState(false);
+  useEffect(() => {
+    if (connected) setEverConnected(true);
+  }, [connected]);
   const [pendingCount, setPendingCount] = useState(0);
   const [notice, setNotice] = useState(() => sessionStorage.getItem(noticeKey) || "");
   const pendingRef = useRef(pendingCount);
@@ -132,8 +138,8 @@ export function ConnectionProvider({ user, familyIds, children }: { user: User; 
   }, [user.id, familyKey]);
 
   const value = useMemo(
-    () => ({ online, connected, pendingCount, notice, dismissNotice }),
-    [online, connected, pendingCount, notice, dismissNotice]
+    () => ({ online, connected, everConnected, pendingCount, notice, dismissNotice }),
+    [online, connected, everConnected, pendingCount, notice, dismissNotice]
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

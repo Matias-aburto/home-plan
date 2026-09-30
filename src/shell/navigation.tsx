@@ -77,8 +77,18 @@ export function useNavigation() {
       archived: archivedIn(family.id),
       canCreate: true,
       links: [
-        { key: `calendar:${family.id}`, to: `/familias/${family.id}/calendario`, label: "Calendario", icon: <CalendarDays size={18} /> },
-        { key: `settings:${family.id}`, to: `/familias/${family.id}/ajustes`, label: "Ajustes", icon: <Settings2 size={18} /> }
+        {
+          key: `calendar:${family.id}`,
+          to: `/familias/${family.id}/calendario`,
+          label: "Calendario",
+          icon: <span className="nav-icon"><CalendarDays size={17} /></span>
+        },
+        {
+          key: `settings:${family.id}`,
+          to: `/familias/${family.id}/ajustes`,
+          label: "Ajustes",
+          icon: <span className="nav-icon"><Settings2 size={17} /></span>
+        }
       ]
     })),
     ...(sharedLists.length || archivedIn("shared").length ? [{
