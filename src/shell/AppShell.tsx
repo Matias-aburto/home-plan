@@ -24,7 +24,7 @@ export function AppShell({
   onLogout: (everywhere?: boolean) => Promise<void>;
 }) {
   const { pathname } = useLocation();
-  const { online, connected, pendingCount } = useConnection();
+  const { online, connected, pendingCount, notice, dismissNotice } = useConnection();
   const { invitations } = useMe();
   const { activeSpace, activeKey } = useNavigation();
   const { detail: familyDetail } = useFamilyDetail(activeSpace.familyId);
@@ -90,6 +90,13 @@ export function AppShell({
           <AccountMenu user={user} onLogout={onLogout} />
         </div>
       </header>
+
+      {notice && (
+        <div className="sync-notice" role="status">
+          <span>{notice}</span>
+          <button onClick={dismissNotice} aria-label="Cerrar aviso"><X size={16} /></button>
+        </div>
+      )}
 
       <div className="dashboard">
         <aside className="sidebar">

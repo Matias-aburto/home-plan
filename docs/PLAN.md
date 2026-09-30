@@ -476,6 +476,15 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - Canales y mensajes por lista (§7) reemplazando el aviso por familia de la Etapa 0A; token por sesión con capabilities por canal.
 - IndexedDB v2, cola por usuario, manejo de 401/404, logout limpia datos.
 - **Listo cuando**: dos dispositivos con distintos usuarios ven solo lo suyo en tiempo real, y offline sigue funcionando como hoy.
+- **Resultado** (rama `feature/etapa-6-offline`). Lo de canales y cola por usuario se fue armando en las etapas 2–5; esta etapa corrigió la cola y la probó:
+  - **Bug corregido**: tras un intento de envío sin conexión, `flushQueue` quedaba con una promesa ya resuelta guardada y no volvía a enviar hasta recargar la página.
+  - **Bug corregido**: dos cambios en el mismo milisegundo podían enviarse en orden inverso; ahora la cola usa un número de secuencia (`seq`).
+  - **Bug corregido**: lo que se agregaba mientras la cola se enviaba podía quedar esperando; ahora se envía de a una operación releyendo la cola.
+  - Rechazos permanentes (400, 403, 409, 410, 422) se descartan en vez de bloquear la cola, y se avisa al usuario; 404 se descarta sin aviso. Red caída, 401, 429 y 5xx detienen el envío y se reintenta cada 30 s, al volver la red o al reconectar Ably.
+  - Si entra otra cuenta en el dispositivo, se avisa cuántos cambios pendientes de la anterior se descartaron.
+  - Sin tiempo real configurado, el estado vuelve a "Sincronizado" al recuperar la red.
+  - Tests de la cola en `src/data/sync.test.ts` (happy-dom + fake-indexeddb).
+  - Probado en el navegador: cambios sin conexión, envío al volver, cambio rechazado con aviso y arranque desde la caché con el servidor caído.
 
 ### Etapa 7: Migración y retiro del modelo antiguo
 - Script de migración (§9) probado primero contra una copia de la base de Turso.

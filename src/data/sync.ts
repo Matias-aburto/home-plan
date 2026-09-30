@@ -12,7 +12,9 @@ export const syncEvents = {
   // Ably avisó cambios en una familia (detail: { familyId, calendar }).
   familyChanged: "casa:family-changed",
   // Se recuperó la conexión: todo lo visible debe recargarse.
-  resync: "casa:resync"
+  resync: "casa:resync",
+  // Se descartaron cambios que el servidor rechazó de forma permanente (detail: cantidad).
+  dropped: "casa:dropped"
 } as const;
 
 export type SyncedDetail = { familyIds: string[]; listIds: string[] };
@@ -27,44 +29,69 @@ async function emitPending() {
 }
 
 let flushing: Promise<void> | null = null;
+let lastResult: "drained" | "stopped" = "drained";
 
-// Envía la cola en orden. Un 404 descarta la operación (el recurso ya no existe o no hay acceso);
-// cualquier otro error detiene el envío para reintentar después sin alterar el orden.
+// Rechazos que no se arreglan reintentando: el recurso ya no existe, no hay permiso o los datos
+// no son válidos. Se descartan para no bloquear la cola y se avisa al usuario.
+const permanentStatuses = new Set([400, 403, 404, 409, 410, 422]);
+
+// Envía la cola en orden, de a una operación y volviendo a leerla cada vez para incluir las que se
+// agregan mientras tanto. Sin red, con 401 (sesión vencida), 429 o errores del servidor se detiene
+// sin alterar el orden, para reintentar después.
 export function flushQueue() {
-  flushing ??= (async () => {
-    const familyIds = new Set<string>();
-    const listIds = new Set<string>();
-    try {
-      if (!navigator.onLine) return;
-      for (const operation of await getPendingOperations()) {
-        try {
-          await api(operation.url, {
-            method: operation.method,
-            body: operation.body ? JSON.stringify(operation.body) : undefined
-          });
-        } catch (error) {
-          if (!(error instanceof ApiError && error.status === 404)) break;
-        }
-        await removeOperation(operation.id);
-        if (operation.familyId) familyIds.add(operation.familyId);
-        if (operation.listId) listIds.add(operation.listId);
-        await emitPending();
-      }
-    } finally {
-      flushing = null;
-      await emitPending();
-      if (familyIds.size || listIds.size) {
-        emit(syncEvents.synced, { familyIds: [...familyIds], listIds: [...listIds] } satisfies SyncedDetail);
-      }
-    }
-  })();
+  // La referencia se limpia en .finally: si se hiciera dentro de la función, una pasada que termina
+  // sin esperar nada (por ejemplo, sin conexión) la limpiaría antes de asignarla y quedaría pegada.
+  flushing ??= runFlush().finally(() => {
+    flushing = null;
+  });
   return flushing;
 }
 
+async function runFlush() {
+  const familyIds = new Set<string>();
+  const listIds = new Set<string>();
+  let dropped = 0;
+  lastResult = "stopped";
+  try {
+    while (navigator.onLine) {
+      const [operation] = await getPendingOperations();
+      if (!operation) {
+        lastResult = "drained";
+        break;
+      }
+      try {
+        await api(operation.url, {
+          method: operation.method,
+          body: operation.body ? JSON.stringify(operation.body) : undefined
+        });
+      } catch (error) {
+        if (!(error instanceof ApiError && permanentStatuses.has(error.status))) break;
+        // 404 suele ser algo que otra persona ya borró: no vale la pena avisar.
+        if (error.status !== 404) dropped += 1;
+      }
+      await removeOperation(operation.id);
+      if (operation.familyId) familyIds.add(operation.familyId);
+      if (operation.listId) listIds.add(operation.listId);
+      await emitPending();
+    }
+  } finally {
+    await emitPending();
+    if (dropped) emit(syncEvents.dropped, dropped);
+    // Lo enviado (o descartado) se recarga desde el servidor para reemplazar lo optimista.
+    if (familyIds.size || listIds.size) {
+      emit(syncEvents.synced, { familyIds: [...familyIds], listIds: [...listIds] } satisfies SyncedDetail);
+    }
+  }
+}
+
 export async function mutate(operation: Mutation) {
-  await enqueueOperation(operation);
+  const queued = await enqueueOperation(operation);
   await emitPending();
   await flushQueue();
+  // Si se agregó justo cuando una pasada anterior terminaba, se envía en una pasada nueva.
+  if (lastResult === "drained" && (await getPendingOperations()).some(({ id }) => id === queued.id)) {
+    await flushQueue();
+  }
 }
 
 export async function hasPendingFor(filter: { familyId?: string; listId?: string }) {

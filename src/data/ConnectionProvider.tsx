@@ -1,13 +1,25 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Realtime } from "ably";
 import { api } from "../api/client";
 import { getPendingOperations } from "../offline";
 import type { User } from "../types";
 import { emitSyncEvent, flushQueue, onSyncEvent, syncEvents } from "./sync";
 
-type Connection = { online: boolean; connected: boolean; pendingCount: number };
+type Connection = {
+  online: boolean;
+  connected: boolean;
+  pendingCount: number;
+  // Aviso para el usuario sobre cambios que no se pudieron guardar.
+  notice: string;
+  dismissNotice: () => void;
+};
 
-const Context = createContext<Connection>({ online: true, connected: false, pendingCount: 0 });
+const Context = createContext<Connection>({
+  online: true, connected: false, pendingCount: 0, notice: "", dismissNotice: () => undefined
+});
+
+export const noticeKey = "casa:notice";
+const retryIntervalMs = 30_000;
 
 // Mantiene la cola offline enviándose y escucha a Ably. Ably solo avisa qué cambió;
 // cada vista vuelve a pedir sus datos a la API al recibir el evento correspondiente.
@@ -15,6 +27,14 @@ export function ConnectionProvider({ user, familyIds, children }: { user: User; 
   const [online, setOnline] = useState(navigator.onLine);
   const [connected, setConnected] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [notice, setNotice] = useState(() => sessionStorage.getItem(noticeKey) || "");
+  const pendingRef = useRef(pendingCount);
+  pendingRef.current = pendingCount;
+
+  const dismissNotice = useCallback(() => {
+    sessionStorage.removeItem(noticeKey);
+    setNotice("");
+  }, []);
 
   useEffect(() => {
     const onOnline = () => {
@@ -28,12 +48,23 @@ export function ConnectionProvider({ user, familyIds, children }: { user: User; 
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     const offPending = onSyncEvent<number>(syncEvents.pending, setPendingCount);
+    const offDropped = onSyncEvent<number>(syncEvents.dropped, (count) => {
+      setNotice(count === 1
+        ? "Un cambio no se pudo guardar: ya no tienes permiso o los datos cambiaron."
+        : `${count} cambios no se pudieron guardar: ya no tienes permiso o los datos cambiaron.`);
+    });
+    // Si el servidor falló, se reintenta cada cierto tiempo mientras queden cambios pendientes.
+    const retry = window.setInterval(() => {
+      if (navigator.onLine && pendingRef.current > 0) void flushQueue();
+    }, retryIntervalMs);
     void getPendingOperations().then((operations) => setPendingCount(operations.length));
     void flushQueue();
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       offPending();
+      offDropped();
+      window.clearInterval(retry);
     };
   }, []);
 
@@ -86,7 +117,11 @@ export function ConnectionProvider({ user, familyIds, children }: { user: User; 
       }
     }
 
-    const onOnline = () => void start();
+    // Sin tiempo real no hay cliente de Ably que avise la reconexión: basta con volver a tener red.
+    const onOnline = () => {
+      if (started && !client) setConnected(true);
+      else void start();
+    };
     window.addEventListener("online", onOnline);
     void start();
     return () => {
@@ -96,7 +131,10 @@ export function ConnectionProvider({ user, familyIds, children }: { user: User; 
     };
   }, [user.id, familyKey]);
 
-  const value = useMemo(() => ({ online, connected, pendingCount }), [online, connected, pendingCount]);
+  const value = useMemo(
+    () => ({ online, connected, pendingCount, notice, dismissNotice }),
+    [online, connected, pendingCount, notice, dismissNotice]
+  );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 

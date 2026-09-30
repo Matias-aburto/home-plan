@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { ApiError, api, unauthorizedEvent } from "../api/client";
-import { clearOfflineData } from "../offline";
+import { clearOfflineData, getPendingOperations } from "../offline";
 import type { User } from "../types";
 
 type Session = {
@@ -32,10 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<Session["status"]>("loading");
 
-  // Si entra otra cuenta, no hereda la caché ni la cola offline de la anterior.
+  // Si entra otra cuenta, no hereda la caché ni la cola offline de la anterior (se avisa si se pierde algo).
   const signIn = useCallback(async (nextUser: User) => {
     const previous = readCachedUser();
-    if (previous && previous.id !== nextUser.id) await clearDeviceData();
+    if (previous && previous.id !== nextUser.id) {
+      const discarded = (await getPendingOperations()).length;
+      await clearDeviceData();
+      if (discarded) {
+        sessionStorage.setItem("casa:notice", `Se descartaron ${discarded} cambio${discarded === 1 ? "" : "s"} sin sincronizar de ${previous.email}.`);
+      }
+    }
     localStorage.setItem(cachedUserKey, JSON.stringify(nextUser));
     setUser(nextUser);
     setStatus("authenticated");

@@ -9,6 +9,8 @@ export type QueuedOperation = {
   familyId?: string;
   listId?: string;
   createdAt: string;
+  // Orden estricto de encolado: dos cambios pueden caer en el mismo milisegundo.
+  seq?: number;
 };
 
 interface HomePlanDatabase extends DBSchema {
@@ -83,11 +85,16 @@ export async function getCachedMeta<T>(id: string) {
   return cacheGet<T>("meta", id);
 }
 
-export async function enqueueOperation(operation: Omit<QueuedOperation, "id" | "createdAt">) {
+let lastSeq = 0;
+
+export async function enqueueOperation(operation: Omit<QueuedOperation, "id" | "createdAt" | "seq">) {
+  // Creciente aunque se llame varias veces en el mismo milisegundo o se recargue la página.
+  lastSeq = Math.max(lastSeq + 1, Date.now() * 1000);
   const queued: QueuedOperation = {
     ...operation,
     id: crypto.randomUUID(),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    seq: lastSeq
   };
   await (await database).put("outbox", queued);
   return queued;
@@ -105,5 +112,5 @@ export async function clearOfflineData() {
 
 export async function getPendingOperations() {
   const operations = await (await database).getAll("outbox");
-  return operations.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return operations.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0) || a.createdAt.localeCompare(b.createdAt));
 }
