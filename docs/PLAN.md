@@ -23,7 +23,10 @@ Pasar de un modelo "código familiar = acceso a todo" a un modelo basado en **cu
 | Familias | Un usuario puede pertenecer a varias; cada una con su propio contenido. |
 | Compartir listas | Dueño = usuario **o** familia, y además compartible con usuarios puntuales (`list_members`). |
 | Datos actuales | Se migran; el primer usuario que ingresa el código antiguo reclama la familia como `owner`. |
-| Notificaciones | Dentro de la app (bandeja de invitaciones + socket). Email queda como extra futuro. |
+| Notificaciones | Dentro de la app (bandeja de invitaciones + tiempo real). Email queda como extra futuro. |
+| Hosting | Vercel (frontend estático + API como función serverless). Se abandona Render por el cold start. |
+| Tiempo real | Ably (canales privados con token). Reemplaza Socket.IO, que no funciona en serverless. |
+| Base de datos | Turso (sin cambios). |
 
 ## 3. Conceptos y reglas
 
@@ -189,7 +192,7 @@ CREATE INDEX idx_invitations_email ON invitations(invited_email, status);
 - **Límites**: rate limit en `/api/auth/*` (por IP), en la creación de invitaciones (por usuario/día) y en la aceptación por token.
 - **Logout**: borra la sesión actual. "Cerrar sesión en todos los dispositivos": borra todas las del usuario.
 - **Variables de entorno nuevas**: `GOOGLE_CLIENT_ID`, `SESSION_SECRET` (opcional, para firmar), `APP_ORIGIN`.
-- **Requisito externo**: proyecto en Google Cloud Console con credencial OAuth "Aplicación web"; orígenes autorizados `http://localhost:5173` y la URL de Render. Lo configura el dueño del proyecto.
+- **Requisito externo**: proyecto en Google Cloud Console con credencial OAuth "Aplicación web"; orígenes autorizados `http://localhost:5173` y la URL de Vercel. Lo configura el dueño del proyecto.
 
 ## 6. API
 
@@ -252,20 +255,29 @@ Todas las rutas (salvo `/api/health` y `/api/auth/google`) requieren sesión. Lo
 
 **Regla del enlace**: el enlace lo puede aceptar cualquier usuario autenticado que lo tenga (útil si la persona usa otro email de Google), pero es de un solo uso y vence. Se muestra claramente a qué email iba dirigido.
 
-## 7. Tiempo real (Socket.IO)
+## 7. Tiempo real (Ably)
 
-- El handshake lee la cookie `sid`; sin sesión válida se rechaza la conexión.
-- Al conectar, el servidor une el socket a: `user:<id>`, `family:<id>` por cada familia y `list:<id>` por cada lista compartida puntualmente.
-- Los cambios de membresía (aceptar, quitar, salir) actualizan las salas del socket del afectado en el servidor (`io.in("user:<id>").socketsJoin/Leave`).
-- Eventos (payloads pequeños, no la familia completa):
+Vercel ejecuta la API como funciones serverless, que no mantienen WebSockets. El tiempo real lo entrega **Ably**.
+
+- **Patrón "aviso + recarga"**: el servidor publica mensajes pequeños que solo dicen *qué cambió*; el cliente vuelve a pedir los datos a la API, que es la única que decide qué puede ver cada uno. Evita el límite de tamaño de mensaje y no duplica la lógica de permisos.
+- **Publicación**: desde la API con `Ably.Rest` (clave `ABLY_API_KEY`, solo en el servidor), después de cada escritura exitosa.
+- **Suscripción**: el cliente usa `Ably.Realtime` con `authUrl: /api/realtime/token`. El servidor emite un *token request* cuyas `capability` solo incluyen los canales permitidos (`subscribe`), p. ej.:
+  ```json
+  { "user:<id>": ["subscribe"], "family:<fid>": ["subscribe"], "list:<lid>": ["subscribe"] }
+  ```
+  Así un cliente no puede escuchar canales ajenos ni publicar.
+- **Cambios de membresía** (aceptar, quitar, salir): se publica `me:updated` en `user:<id>`; el cliente pide un token nuevo (`auth.authorize()`) para obtener las capabilities actualizadas y se suscribe/desuscribe.
+- **Canales**: `user:<id>`, `family:<id>`, `list:<id>`.
+- **Mensajes** (nombre + datos mínimos):
   - `me:updated`: cambió algo del arranque (listas visibles, familias, invitaciones)
-  - `list:updated` `{ list }`: metadata
-  - `list:items` `{ listId, items }`: ítems de una lista
+  - `list:changed` `{ listId }`: metadata o ítems → `GET /api/lists/:id`
   - `list:removed` `{ listId }`: perdiste acceso o se borró
-  - `family:updated` `{ family }`: miembros, ubicaciones
-  - `calendar:updated` `{ familyId, entries }`
-  - `invitation:received` / `invitation:updated`
-- Emisión: a `family:<id>` si la lista es de familia, más `list:<id>` y `user:<owner>` según corresponda.
+  - `family:changed` `{ familyId }`: miembros, ubicaciones
+  - `calendar:changed` `{ familyId }`
+  - `invitation:changed`
+- **Emisión**: a `family:<id>` si la lista es de familia, más `list:<id>` (compartida puntualmente) y `user:<owner>` según corresponda.
+- **Reconexión**: al recuperar conexión (`connection.on("connected")`) el cliente vacía su cola offline y recarga lo visible, como hoy.
+- **Antes del login (Etapa 0A)**: el token se emite por código de familia con capability solo sobre `family:<código>`.
 
 ## 8. Cliente
 
@@ -347,6 +359,18 @@ Se ejecuta en `initialize()` de forma idempotente (marcada con una tabla `migrat
 
 Cada etapa: rama `feature/<nombre>`, PR propio, desplegable sin romper la anterior.
 
+### Etapa 0A: Migración a Vercel + Ably
+Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque tarda 30–60 s.
+- **API serverless**: separar `server/app.ts` (Express sin `listen`) de `server/index.ts` (servidor local). `api/index.ts` exporta `app` para Vercel.
+- **Migraciones fuera del arranque**: `initialize()` pasa a `npm run db:migrate` (script idempotente), que se ejecuta en el build de Vercel. En las funciones solo se abre el cliente de Turso.
+- **Tiempo real**: `server/realtime.ts` publica con `Ably.Rest` (patrón aviso + recarga, §7). `GET /api/families/:id/realtime-token` entrega un token request con capability `subscribe` solo sobre `family:<id>`. El cliente reemplaza `socket.io-client` por `ably`.
+- **Vercel**: `vercel.json` con build de Vite (`dist`), rewrites `/api/*` → función y el resto → `index.html`.
+- **Desarrollo local**: se mantiene `npm run dev` (Express + Vite); sin `ABLY_API_KEY` el tiempo real queda desactivado sin romper nada.
+- **Variables de entorno**: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ABLY_API_KEY`.
+- Se eliminan `socket.io`, `socket.io-client` y `render.yaml` (tras verificar Vercel).
+- **Requisito externo**: cuenta de Vercel conectada al repo de GitHub y app de Ably con una API key (permisos publish + subscribe).
+- **Listo cuando**: la app corre en Vercel sin cold start perceptible, dos dispositivos se sincronizan en tiempo real y el modo offline sigue funcionando.
+
 ### Etapa 0: Preparación
 - Dividir `App.tsx` según la estructura de §8 sin cambiar comportamiento.
 - Dividir `server/index.ts` en routers (`routes/items.ts`, `routes/tasks.ts`, …) y `HomeRepository` por dominio.
@@ -359,10 +383,10 @@ Cada etapa: rama `feature/<nombre>`, PR propio, desplegable sin romper la anteri
 - Tablas `users`, `sessions`; `google-auth-library`; middleware `requireUser`.
 - `POST /api/auth/google`, `logout`, `logout-all`, `GET/PATCH /api/me`.
 - `LoginPage`, `AuthProvider`, guardas de ruta.
-- Socket autenticado por cookie.
+- Token de Ably (`/api/realtime/token`) emitido según la sesión, con canal `user:<id>`.
 - Convivencia: tras login, si el usuario no tiene nada, se ofrece "Tengo un código antiguo" (usa aún el flujo viejo).
 - **Tests**: token inválido / aud incorrecto / email no verificado → 401; sesión vencida → 401; renovación deslizante.
-- **Listo cuando**: se puede entrar y salir con Google en local y en Render.
+- **Listo cuando**: se puede entrar y salir con Google en local y en Vercel.
 
 ### Etapa 2: Listas personales
 - Tablas `lists`, `list_items`, `user_list_prefs`; `listAccess()`.
@@ -384,7 +408,7 @@ Cada etapa: rama `feature/<nombre>`, PR propio, desplegable sin romper la anteri
 - Tabla `invitations`; crear, listar, revocar, aceptar, rechazar, vencer (se marca `expired` al consultar).
 - Bandeja, campana con contador, `InvitationLanding` para `/invitacion/:token`.
 - Invitaciones a emails sin cuenta aparecen en el primer login.
-- Eventos socket `invitation:*` y reasignación de salas al aceptar.
+- Mensajes Ably `invitation:changed` y renovación del token (capabilities) al aceptar.
 - **Tests**: aceptar dos veces; token vencido/revocado; invitar a quien ya es miembro; email con mayúsculas.
 - **Listo cuando**: se invita por email o enlace, y el invitado acepta o rechaza desde su bandeja.
 
@@ -397,7 +421,7 @@ Cada etapa: rama `feature/<nombre>`, PR propio, desplegable sin romper la anteri
 - **Listo cuando**: una lista personal se comparte con alguien de fuera de la familia.
 
 ### Etapa 6: Tiempo real y offline completos
-- Eventos granulares (§7) reemplazando `family:updated` con la familia completa.
+- Canales y mensajes por lista (§7) reemplazando el aviso por familia de la Etapa 0A; token por sesión con capabilities por canal.
 - IndexedDB v2, cola por usuario, manejo de 401/404, logout limpia datos.
 - **Listo cuando**: dos dispositivos con distintos usuarios ven solo lo suyo en tiempo real, y offline sigue funcionando como hoy.
 
@@ -405,16 +429,17 @@ Cada etapa: rama `feature/<nombre>`, PR propio, desplegable sin romper la anteri
 - Script de migración (§9) probado primero contra una copia de la base de Turso.
 - Reclamar familia y vincular responsables antiguos.
 - Quitar onboarding por código, rutas antiguas, familia `CASA` automática.
-- Actualizar `README.md` y `render.yaml` (variables nuevas).
+- Actualizar `README.md` y variables de entorno en Vercel.
 - **Listo cuando**: los datos actuales están en listas nuevas, reclamados, y ya no se puede entrar solo con el código.
 
 ## 11. Riesgos y mitigaciones
 
 | Riesgo | Mitigación |
 |---|---|
-| Filtrar listas personales por socket o `GET` | Toda respuesta y emisión pasa por `listAccess`; tests de "usuario ajeno ve 404 / no recibe evento" |
+| Filtrar listas personales por tiempo real o `GET` | Toda respuesta pasa por `listAccess`; los mensajes Ably no llevan datos; capabilities del token limitadas a canales permitidos; tests de "usuario ajeno ve 404 / no obtiene el canal" |
 | Perder datos en la migración | Respaldo previo, migración idempotente, tablas viejas conservadas, prueba contra copia |
-| Render free duerme el servidor | El login debe tolerar el primer request lento (spinner); sin cambios de hosting por ahora |
+| Límites de planes gratis (Vercel Hobby, Ably Free) | Mensajes mínimos (aviso + recarga); revisar uso mensual; plan pago si se supera |
+| Tiempo máximo de funciones serverless | Nada de trabajo largo en requests; migraciones en el build |
 | Cookie en PWA iOS (Safari) | Mismo origen para web y API (ya es así en producción); probar instalación en iPhone |
 | Cola offline de otro usuario en el mismo dispositivo | Outbox con `userId` y limpieza al cerrar sesión |
 | Complejidad de `App.tsx` | Etapa 0 dedicada a dividirlo antes de agregar funciones |
