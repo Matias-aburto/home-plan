@@ -450,6 +450,12 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - Mensajes Ably `invitation:changed` y renovación del token (capabilities) al aceptar.
 - **Tests**: aceptar dos veces; token vencido/revocado; invitar a quien ya es miembro; email con mayúsculas.
 - **Listo cuando**: se invita por email o enlace, y el invitado acepta o rechaza desde su bandeja.
+- **Resultado** (rama `feature/etapa-4-invitaciones`):
+  - Tabla `invitations` genérica (`family` ahora, `list` en la Etapa 5). Del enlace solo se guarda el hash del token (como las sesiones), así que "reenviar" crea un enlace nuevo y anula el anterior.
+  - Invitan owner y admin; solo el owner ofrece el rol admin. Límite de 50 invitaciones por usuario cada 24 h. No se invita a quien ya es miembro.
+  - Aceptar/rechazar desde la bandeja exige que el email de la cuenta coincida; desde el enlace vale para cualquier cuenta con sesión, una vez. Respuestas sobre invitaciones cerradas: 410 con el motivo.
+  - Tiempo real: se reutiliza `me:changed` (al invitado, si ya tiene cuenta) y `family:changed`; al aceptar cambian las familias del usuario y el cliente pide un token nuevo con el canal de la familia (no hizo falta un mensaje `invitation:*` aparte).
+  - Cliente: campana con contador en la cabecera, `/invitaciones` (bandeja), `/invitacion/:token` (el login conserva la URL), y en los ajustes de la familia: invitar, copiar/compartir enlace, reenviar y anular pendientes.
 
 ### Etapa 5: Compartir listas con personas puntuales
 - Tabla `list_members`; permisos `editor`/`viewer`; invitaciones tipo `list`.

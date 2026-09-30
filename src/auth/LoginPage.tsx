@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Download, House } from "lucide-react";
+import { useLocation } from "react-router";
 import { api } from "../api/client";
 import type { User } from "../types";
 
@@ -47,6 +48,8 @@ export function LoginPage({
   onSignedIn: (user: User) => Promise<void>;
 }) {
   const buttonRef = useRef<HTMLDivElement>(null);
+  // Tras iniciar sesión se queda en la misma URL, así que el enlace de invitación sigue funcionando.
+  const invited = useLocation().pathname.startsWith("/invitacion/");
   const [config, setConfig] = useState<AuthConfig | null>(null);
   const [error, setError] = useState("");
   const [devEmail, setDevEmail] = useState("");
@@ -128,7 +131,11 @@ export function LoginPage({
         <div className="welcome-content animate-in">
           <div className="eyebrow">Tu hogar, más simple</div>
           <h1>Todo en casa,<br />en un solo lugar.</h1>
-          <p>Tus listas y las de tu familia, sincronizadas en todos tus dispositivos.</p>
+          <p>
+            {invited
+              ? "Te invitaron a Casa. Inicia sesión para ver la invitación."
+              : "Tus listas y las de tu familia, sincronizadas en todos tus dispositivos."}
+          </p>
           <div className="login-actions">
             {config?.googleClientId && <div className="google-button" ref={buttonRef} aria-busy={submitting} />}
             {config && !config.googleClientId && !config.devLogin && (

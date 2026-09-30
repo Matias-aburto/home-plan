@@ -2633,3 +2633,106 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
   .member-row { flex-wrap: wrap; }
   .member-row select { flex: 1 1 100%; order: 3; }
 }
+
+/* Invitaciones */
+.invitations-button {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  color: var(--green);
+  background: var(--green-soft);
+  border-radius: 12px;
+  text-decoration: none;
+}
+
+.invitations-button b {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  padding: 2px 5px;
+  color: #fff;
+  background: #c0583f;
+  border-radius: 999px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.invitation-list { margin-top: 26px; display: grid; gap: 10px; }
+
+.invitation-card {
+  padding: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 13px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.invitation-card .list-icon { width: 38px; height: 38px; border-radius: 12px; }
+.invitation-copy { min-width: 200px; flex: 1; }
+.invitation-copy strong { font-family: "Manrope", sans-serif; font-size: 16px; }
+.invitation-copy p { margin: 4px 0; color: #4d5a53; font-size: 14px; line-height: 1.45; }
+.invitation-copy small { color: var(--muted); font-size: 12px; }
+.invitation-actions { display: flex; gap: 8px; align-self: center; }
+.invitation-actions button { height: 42px; padding: 0 16px; }
+
+.invitation-note {
+  padding: 10px 12px;
+  color: #735b36;
+  background: #fff6e6;
+  border: 1px solid #f0dfbe;
+  border-radius: 11px;
+  font-size: 13px;
+}
+
+.invite-link-box {
+  margin-top: 14px;
+  padding: 14px;
+  background: var(--green-soft);
+  border-radius: 12px;
+}
+
+.invite-link-box p { margin: 0 0 10px; color: #33463c; font-size: 13px; line-height: 1.45; }
+.invite-link-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.invite-link-row input {
+  min-width: 0;
+  height: 40px;
+  padding: 0 11px;
+  flex: 1 1 220px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #d5e2da;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.invite-link-row button { height: 40px; padding: 0 13px; }
+
+.pending-invites { margin-top: 16px; }
+.pending-invites h4 { margin: 0 0 6px; color: #919b95; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; }
+
+.pending-invite {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid #f1f2ee;
+}
+
+.pending-invite:last-child { border-bottom: 0; }
+.pending-invite span { min-width: 0; flex: 1; }
+.pending-invite strong { display: block; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.pending-invite small { color: var(--muted); font-size: 12px; }
+.pending-invite .icon-button:hover { color: var(--green); background: var(--green-soft); }
+
+@media (max-width: 720px) {
+  .invitation-actions { width: 100%; }
+  .invitation-actions button { flex: 1; }
+}

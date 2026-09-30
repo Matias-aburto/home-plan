@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Download, House, Menu, Plus, X } from "lucide-react";
+import { Bell, Download, House, Menu, Plus, X } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router";
 import { AccountMenu, UserAvatar } from "../components/AccountMenu";
 import { useConnection } from "../data/ConnectionProvider";
+import { useMe } from "../data/MeProvider";
 import { useFamilyDetail } from "../family/useFamilyDetail";
 import { NewListModal } from "../lists/NewListModal";
 import type { User } from "../types";
@@ -24,6 +25,7 @@ export function AppShell({
 }) {
   const { pathname } = useLocation();
   const { online, connected, pendingCount } = useConnection();
+  const { invitations } = useMe();
   const { activeSpace, activeKey } = useNavigation();
   const { detail: familyDetail } = useFamilyDetail(activeSpace.familyId);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -79,6 +81,12 @@ export function AppShell({
                 ? `Sincronizando · ${pendingCount}`
                 : connected ? "Sincronizado" : "Reconectando"}
           </span>
+          {invitations.length > 0 && (
+            <Link className="invitations-button" to="/invitaciones" aria-label={`${invitations.length} ${invitations.length === 1 ? "invitación pendiente" : "invitaciones pendientes"}`}>
+              <Bell size={18} />
+              <b>{invitations.length}</b>
+            </Link>
+          )}
           <AccountMenu user={user} onLogout={onLogout} />
         </div>
       </header>

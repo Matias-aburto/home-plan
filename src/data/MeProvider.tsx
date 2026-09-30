@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import { cacheMeta, getCachedMeta, getPendingOperations } from "../offline";
-import type { FamilySummary, ListKind, ListSummary, Me, User } from "../types";
+import type { FamilySummary, Invitation, ListKind, ListSummary, Me, User } from "../types";
 import { mutate, onSyncEvent, syncEvents } from "./sync";
 
 export type NewListInput = { name: string; kind: ListKind; icon: string; color: string };
@@ -10,7 +10,10 @@ type ListChanges = Partial<Pick<ListSummary, "name" | "icon" | "color">> & { arc
 type MeContext = {
   lists: ListSummary[];
   families: FamilySummary[];
+  invitations: Invitation[];
   loaded: boolean;
+  // Responder desde la bandeja requiere conexión.
+  respondInvitation: (invitationId: string, action: "accept" | "decline") => Promise<Invitation>;
   refresh: () => Promise<void>;
   // Requieren conexión: el servidor crea el id de la familia o valida el código.
   createFamily: (name: string) => Promise<FamilySummary>;
@@ -29,17 +32,27 @@ const cacheKey = "me";
 export function MeProvider({ user, children }: { user: User; children: ReactNode }) {
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [families, setFamilies] = useState<FamilySummary[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loaded, setLoaded] = useState(false);
   const listsRef = useRef(lists);
   listsRef.current = lists;
   const familiesRef = useRef(families);
   familiesRef.current = families;
 
-  const store = useCallback((next: ListSummary[], nextFamilies = familiesRef.current) => {
+  const invitationsRef = useRef(invitations);
+  invitationsRef.current = invitations;
+
+  const store = useCallback((
+    next: ListSummary[],
+    nextFamilies = familiesRef.current,
+    nextInvitations = invitationsRef.current
+  ) => {
     setLists(next);
     setFamilies(nextFamilies);
+    setInvitations(nextInvitations);
     familiesRef.current = nextFamilies;
-    void cacheMeta(cacheKey, { user, families: nextFamilies, lists: next } satisfies Me);
+    invitationsRef.current = nextInvitations;
+    void cacheMeta(cacheKey, { user, families: nextFamilies, lists: next, invitations: nextInvitations } satisfies Me);
   }, [user]);
 
   // No pisa cambios locales que todavía no llegan al servidor.
@@ -47,7 +60,7 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
     if ((await getPendingOperations()).length > 0) return;
     try {
       const me = await api<Me>("/api/me");
-      store(me.lists, me.families);
+      store(me.lists, me.families, me.invitations);
     } catch {
       // Sin conexión se mantiene lo que había.
     } finally {
@@ -60,6 +73,7 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
       if (cached && cached.user.id === user.id) {
         setLists(cached.lists);
         setFamilies(cached.families ?? []);
+        setInvitations(cached.invitations ?? []);
         setLoaded(true);
       }
     });
@@ -83,8 +97,16 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
 
   const forceRefresh = useCallback(async () => {
     const me = await api<Me>("/api/me");
-    store(me.lists, me.families);
+    store(me.lists, me.families, me.invitations);
   }, [store]);
+
+  const respondInvitation = useCallback(async (invitationId: string, action: "accept" | "decline") => {
+    try {
+      return await api<Invitation>(`/api/invitations/${invitationId}/${action}`, { method: "POST" });
+    } finally {
+      await forceRefresh().catch(() => undefined);
+    }
+  }, [forceRefresh]);
 
   const createFamily = useCallback(async (name: string) => {
     const family = await api<FamilySummary>("/api/families", { method: "POST", body: JSON.stringify({ name }) });
@@ -143,9 +165,13 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
 
   const value = useMemo(
     () => ({
-      lists, families, loaded, refresh, createFamily, claimFamily, createList, updateList, deleteList, reorderLists, patchListLocally
+      lists, families, invitations, loaded, refresh, respondInvitation, createFamily, claimFamily,
+      createList, updateList, deleteList, reorderLists, patchListLocally
     }),
-    [lists, families, loaded, refresh, createFamily, claimFamily, createList, updateList, deleteList, reorderLists, patchListLocally]
+    [
+      lists, families, invitations, loaded, refresh, respondInvitation, createFamily, claimFamily,
+      createList, updateList, deleteList, reorderLists, patchListLocally
+    ]
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

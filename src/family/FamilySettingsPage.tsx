@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { CircleAlert, DoorOpen, Link2, Trash2, UserPlus } from "lucide-react";
+import { CircleAlert, DoorOpen, Link2, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../api/client";
 import { useSession } from "../auth/AuthProvider";
@@ -7,6 +7,7 @@ import { UserAvatar } from "../components/AccountMenu";
 import { Loading } from "../components/Loading";
 import { useMe } from "../data/MeProvider";
 import type { FamilyMember, FamilyRole } from "../types";
+import { FamilyInvitations } from "./FamilyInvitations";
 import { useFamilyDetail } from "./useFamilyDetail";
 
 export const roleLabels: Record<FamilyRole, string> = {
@@ -143,8 +144,9 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
             </div>
           ))}
         </div>
-        <p className="settings-hint"><UserPlus size={15} /> Muy pronto podrás invitar personas con su email.</p>
       </div>
+
+      {isAdmin && <FamilyInvitations familyId={family.id} familyName={family.name} canInviteAdmins={isOwner} />}
 
       {isAdmin && legacyAssignees.length > 0 && (
         <div className="settings-card">

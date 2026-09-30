@@ -10,6 +10,8 @@ import { FamilyHomePage } from "./family/FamilyHomePage";
 import { FamilySettingsRoute } from "./family/FamilySettingsPage";
 import { NewFamilyPage } from "./family/NewFamilyPage";
 import { useInstallApp } from "./hooks/useInstallApp";
+import { InvitationLanding } from "./invitations/InvitationLanding";
+import { InvitationsPage } from "./invitations/InvitationsPage";
 import { ListRoute } from "./lists/ListPage";
 import { PersonalHome } from "./lists/PersonalHome";
 import { AppShell } from "./shell/AppShell";
@@ -57,9 +59,11 @@ function SignedInApp({
     <ConnectionProvider user={user} familyIds={families.map(({ id }) => id)}>
       <Routes>
         <Route path="familias/nueva" element={<NewFamilyPage user={user} {...install} onLogout={onLogout} />} />
+        <Route path="invitacion/:token" element={<InvitationLanding user={user} onLogout={onLogout} />} />
         <Route element={<AppShell user={user} {...install} onLogout={onLogout} />}>
           <Route index element={<HomeRedirect />} />
           <Route path="personal" element={<PersonalHome />} />
+          <Route path="invitaciones" element={<InvitationsPage />} />
           <Route path="listas/:listId" element={<ListRoute />} />
           <Route path="familias/:familyId" element={<FamilyHomePage />} />
           <Route path="familias/:familyId/calendario" element={<FamilyCalendarRoute />} />

@@ -104,10 +104,27 @@ export type ListDetail = {
   members: Assignable[];
 };
 
+export type InvitationStatus = "pending" | "accepted" | "declined" | "revoked" | "expired";
+
+export type Invitation = {
+  id: string;
+  kind: "family" | "list";
+  familyId: string | null;
+  listId: string | null;
+  targetName: string;
+  invitedEmail: string;
+  offeredRole: string;
+  inviterName: string;
+  status: InvitationStatus;
+  createdAt: string;
+  expiresAt: string;
+};
+
 export type Me = {
   user: User;
   families: FamilySummary[];
   lists: ListSummary[];
+  invitations: Invitation[];
 };
 
 export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId" | "listId">;
