@@ -58,3 +58,11 @@ export type Family = {
 };
 
 export type ListTable = "shopping_items" | "household_tasks";
+
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  color: string;
+};

@@ -1,7 +1,7 @@
-import request from "supertest";
+import type { Agent } from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
-import { app } from "./app.js";
 import { migrate } from "./db/migrations.js";
+import { loginAgent } from "./test/helpers.js";
 
 type FamilyResponse = {
   id: string;
@@ -12,10 +12,11 @@ type FamilyResponse = {
   calendarEntries: { id: string; title: string; date: string; time: string | null }[];
 };
 
-const api = request(app);
+let api: Agent;
 
 beforeAll(async () => {
   await migrate();
+  api = (await loginAgent()).agent;
 });
 
 async function createFamily(name = "Familia test") {

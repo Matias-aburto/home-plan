@@ -58,6 +58,12 @@ export async function removeOperation(id: string) {
   await (await database).delete("outbox", id);
 }
 
+// Al cerrar sesión no deben quedar datos ni cambios pendientes en el dispositivo.
+export async function clearOfflineData() {
+  const db = await database;
+  await Promise.all([db.clear("families"), db.clear("outbox")]);
+}
+
 export async function getPendingOperations(familyId?: string) {
   const db = await database;
   const operations = familyId

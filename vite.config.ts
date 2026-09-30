@@ -45,7 +45,8 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
-      "/api": "http://localhost:3001"
+      // Conserva el Host original: la API compara Origin con Host para rechazar escrituras de otros sitios.
+      "/api": { target: "http://localhost:3001", changeOrigin: false }
     }
   }
 });

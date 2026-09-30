@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import { CalendarDays, Copy, Download, House, ListTodo, Share2, ShoppingBasket } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 import { CalendarSection } from "../calendar/CalendarSection";
+import { AccountMenu } from "../components/AccountMenu";
 import { useSortMode } from "../hooks/useSortMode";
 import { ShoppingSection } from "../shopping/ShoppingSection";
 import { TasksSection } from "../tasks/TasksSection";
-import type { Family, OfflineMutation } from "../types";
+import type { Family, OfflineMutation, User } from "../types";
 import { LocationManager } from "./LocationManager";
 
 type Section = "shopping" | "tasks" | "calendar";
@@ -24,6 +25,7 @@ function sectionFromPath(pathname: string): Section {
 
 export function FamilyHome({
   family,
+  user,
   connected,
   online,
   pendingCount,
@@ -31,9 +33,11 @@ export function FamilyHome({
   onInstall,
   onMutate,
   onRefresh,
-  onLeave
+  onLeave,
+  onLogout
 }: {
   family: Family;
+  user: User;
   connected: boolean;
   online: boolean;
   pendingCount: number;
@@ -42,6 +46,7 @@ export function FamilyHome({
   onMutate: (family: Family, operation: OfflineMutation) => Promise<void>;
   onRefresh: () => Promise<void>;
   onLeave: () => void;
+  onLogout: (everywhere?: boolean) => Promise<void>;
 }) {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
@@ -102,6 +107,7 @@ export function FamilyHome({
             {shareLabel === "Copiado" ? <Copy size={17} /> : <Share2 size={17} />}
             <span>{shareLabel}</span>
           </button>
+          <AccountMenu user={user} onLogout={onLogout} onLeaveFamily={onLeave} />
         </div>
       </header>
 

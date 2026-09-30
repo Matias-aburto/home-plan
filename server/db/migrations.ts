@@ -67,6 +67,25 @@ export async function migrate() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )`,
+    `CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      google_sub TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      avatar_url TEXT,
+      color TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      last_login_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      user_agent TEXT
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_items_family ON shopping_items(family_id, completed, archived_at)",
     "CREATE INDEX IF NOT EXISTS idx_tasks_family ON household_tasks(family_id, completed, archived_at)",
     "CREATE INDEX IF NOT EXISTS idx_calendar_family_date ON calendar_entries(family_id, event_date)"

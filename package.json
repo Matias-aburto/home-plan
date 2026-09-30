@@ -18,8 +18,8 @@
   "dependencies": {
     "@libsql/client": "^0.18.0",
     "ably": "^2.29.0",
-    "cors": "^2.8.5",
     "express": "^5.1.0",
+    "google-auth-library": "^11.1.0",
     "idb": "^8.0.3",
     "lucide-react": "^0.468.0",
     "nanoid": "^5.0.9",
@@ -28,7 +28,6 @@
     "react-router": "^8.4.0"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.3",

@@ -34,11 +34,23 @@ El tiempo real usa [Ably](https://ably.com). Sin `ABLY_API_KEY` la app funciona 
 ABLY_API_KEY=...
 ```
 
+El login usa Google. Crea una credencial OAuth de tipo "Aplicación web" en Google Cloud Console, con orígenes autorizados `http://localhost:5173` y la URL de producción:
+
+```bash
+GOOGLE_CLIENT_ID=....apps.googleusercontent.com
+```
+
+Sin Google, para desarrollo local se puede entrar solo con un email:
+
+```bash
+AUTH_DEV_LOGIN=1
+```
+
 ## Producción (Vercel)
 
 La app se despliega en Vercel: el frontend se sirve como estático y la API (`api/index.ts` → `server/app.ts`) como función serverless. Configuración en `vercel.json`.
 
-Variables de entorno en Vercel: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ABLY_API_KEY`. El build ejecuta `npm run db:init` para aplicar las migraciones antes de compilar.
+Variables de entorno en Vercel: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ABLY_API_KEY`, `GOOGLE_CLIENT_ID`. El build ejecuta `npm run db:init` para aplicar las migraciones antes de compilar.
 
 Para correrla como servidor Node tradicional:
 
@@ -56,11 +68,11 @@ El servidor publica la aplicación completa en `http://localhost:3001`.
 
 ## Alcance actual
 
-- Sin cuentas: el código familiar funciona como acceso compartido.
+- Cuentas con Google y sesiones en cookie httpOnly. Por ahora, dentro de la cuenta se entra a una familia con su código.
 - Los datos se guardan en Turso/libSQL.
 - La sincronización en tiempo real usa Ably (aviso de cambios + recarga desde la API).
 - La aplicación es una PWA instalable.
 - Compras, tareas y eventos del calendario pueden modificarse sin conexión; IndexedDB conserva una cola que se sincroniza automáticamente.
 - La familia de prueba siempre está disponible con el código `CASA`.
 
-Antes de guardar información sensible conviene agregar autenticación y permisos por familia.
+El plan de cuentas, listas personalizadas y familias está en [docs/PLAN.md](docs/PLAN.md).

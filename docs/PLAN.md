@@ -394,6 +394,16 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - Convivencia: tras login, si el usuario no tiene nada, se ofrece "Tengo un código antiguo" (usa aún el flujo viejo).
 - **Tests**: token inválido / aud incorrecto / email no verificado → 401; sesión vencida → 401; renovación deslizante.
 - **Listo cuando**: se puede entrar y salir con Google en local y en Vercel.
+- **Resultado** (rama `feature/etapa-1-login`):
+  - Tablas `users` y `sessions` (token opaco; en la base solo su hash SHA-256; 60 días con renovación deslizante diaria).
+  - `server/auth/google.ts` verifica el ID token (`google-auth-library`, exige `email_verified`). `GET /api/auth/config` entrega el Client ID al cliente, así no se necesita en el build.
+  - Toda la API salvo `/api/health` y `/api/auth/*` exige sesión, incluidas las rutas antiguas de familia (convivencia hasta la Etapa 7).
+  - Seguridad: cookie `sid` httpOnly + `SameSite=Lax` (+ `Secure` en HTTPS), escrituras con `Origin` distinto al `Host` → 403, límite de 30 intentos de login cada 10 min por IP. Se quitó `cors`.
+  - Cliente: `AuthProvider` + `LoginPage` (Google Identity Services) + menú de cuenta en la cabecera (salir de la familia, cerrar sesión, cerrar en todos lados; también accesible en móvil).
+  - Sesión vencida (401): se pide login pero se conserva la cola offline; cerrar sesión o entrar con otra cuenta borra los datos del dispositivo.
+  - Desarrollo local sin Google: `AUTH_DEV_LOGIN=1` habilita `POST /api/auth/dev` (nunca en Vercel).
+  - El token de Ably sigue siendo por familia; el canal `user:<id>` se agrega cuando haga falta (Etapa 4).
+  - Pendiente del dueño: crear la credencial OAuth y cargar `GOOGLE_CLIENT_ID` en Vercel.
 
 ### Etapa 2: Listas personales
 - Tablas `lists`, `list_items`, `user_list_prefs`; `listAccess()`.

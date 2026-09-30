@@ -4,6 +4,9 @@ export class ApiError extends Error {
   }
 }
 
+// Se emite cuando la API responde 401 para que la sesión se cierre en toda la app.
+export const unauthorizedEvent = "casa:unauthorized";
+
 export async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
@@ -11,6 +14,9 @@ export async function api<T>(url: string, options?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { message?: string };
+    if (response.status === 401 && !url.startsWith("/api/auth/")) {
+      window.dispatchEvent(new Event(unauthorizedEvent));
+    }
     throw new ApiError(body.message || "Algo salió mal. Inténtalo nuevamente.", response.status);
   }
   return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);

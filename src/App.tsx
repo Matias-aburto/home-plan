@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { LoginPage } from "./auth/LoginPage";
+import { useSession } from "./auth/AuthProvider";
 import type { Realtime } from "ably";
 import { cacheFamily, enqueueOperation, getCachedFamily, getPendingOperations, removeOperation } from "./offline";
 import { ApiError, api } from "./api/client";
@@ -9,10 +11,37 @@ import { FamilyHome } from "./family/FamilyHome";
 import { useInstallApp } from "./hooks/useInstallApp";
 import { initialFamilyId, normalizeFamily } from "./lib/family";
 import { Onboarding } from "./onboarding/Onboarding";
-import type { Family, OfflineMutation, View } from "./types";
+import type { Family, OfflineMutation, User, View } from "./types";
 
 export default function App() {
   const installApp = useInstallApp();
+  const session = useSession();
+
+  let screen;
+  if (session.status === "loading") screen = <Loading />;
+  else if (!session.user) {
+    screen = <LoginPage canInstall={installApp.canInstall} onInstall={installApp.install} onSignedIn={session.signIn} />;
+  } else {
+    screen = <FamilyApp key={session.user.id} user={session.user} installApp={installApp} onLogout={session.logout} />;
+  }
+
+  return (
+    <>
+      {screen}
+      {installApp.showGuide && <IosInstallGuide onClose={installApp.closeGuide} />}
+    </>
+  );
+}
+
+function FamilyApp({
+  user,
+  installApp,
+  onLogout
+}: {
+  user: User;
+  installApp: ReturnType<typeof useInstallApp>;
+  onLogout: (everywhere?: boolean) => Promise<void>;
+}) {
   const [family, setFamily] = useState<Family | null>(null);
   const [familyId, setFamilyId] = useState(initialFamilyId);
   const [view, setView] = useState<View>("welcome");
@@ -189,38 +218,36 @@ export default function App() {
   if (loading) return <Loading />;
   if (!family) {
     return (
-      <>
-        <Onboarding
-          view={view}
-          error={error}
-          canInstall={installApp.canInstall}
-          onInstall={installApp.install}
-          onViewChange={(nextView) => {
-            setError("");
-            setView(nextView);
-          }}
-          onError={setError}
-          onEnter={enterFamily}
-        />
-        {installApp.showGuide && <IosInstallGuide onClose={installApp.closeGuide} />}
-      </>
+      <Onboarding
+        view={view}
+        error={error}
+        user={user}
+        canInstall={installApp.canInstall}
+        onInstall={installApp.install}
+        onViewChange={(nextView) => {
+          setError("");
+          setView(nextView);
+        }}
+        onError={setError}
+        onEnter={enterFamily}
+        onLogout={onLogout}
+      />
     );
   }
 
   return (
-    <>
-      <FamilyHome
-        family={family}
-        connected={connected}
-        online={online}
-        pendingCount={pendingCount}
-        canInstall={installApp.canInstall}
-        onInstall={installApp.install}
-        onMutate={mutateOffline}
-        onRefresh={refreshFamily}
-        onLeave={leaveFamily}
-      />
-      {installApp.showGuide && <IosInstallGuide onClose={installApp.closeGuide} />}
-    </>
+    <FamilyHome
+      family={family}
+      user={user}
+      connected={connected}
+      online={online}
+      pendingCount={pendingCount}
+      canInstall={installApp.canInstall}
+      onInstall={installApp.install}
+      onMutate={mutateOffline}
+      onRefresh={refreshFamily}
+      onLeave={leaveFamily}
+      onLogout={onLogout}
+    />
   );
 }

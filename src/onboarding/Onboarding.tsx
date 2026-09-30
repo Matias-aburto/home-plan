@@ -1,24 +1,29 @@
 import { useState, type FormEvent } from "react";
 import { ArrowLeft, Download, House, LogIn, Users } from "lucide-react";
 import { api } from "../api/client";
-import type { Family, View } from "../types";
+import { AccountMenu } from "../components/AccountMenu";
+import type { Family, User, View } from "../types";
 
 export function Onboarding({
   view,
   error,
+  user,
   canInstall,
   onInstall,
   onViewChange,
   onError,
-  onEnter
+  onEnter,
+  onLogout
 }: {
   view: View;
   error: string;
+  user: User;
   canInstall: boolean;
   onInstall: () => Promise<void>;
   onViewChange: (view: View) => void;
   onError: (message: string) => void;
   onEnter: (family: Family) => void;
+  onLogout: (everywhere?: boolean) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -61,6 +66,9 @@ export function Onboarding({
             <House size={27} strokeWidth={2.25} />
           </div>
           <span>Casa</span>
+          <div className="brand-account">
+            <AccountMenu user={user} onLogout={onLogout} />
+          </div>
         </header>
 
         {view === "welcome" ? (
@@ -106,7 +114,7 @@ export function Onboarding({
           </div>
         )}
         <footer>
-          <span>Sin cuentas por ahora · Comparte solo con tu hogar</span>
+          <span>Conectado como {user.email}</span>
           {canInstall && (
             <button className="install-link" onClick={onInstall}>
               <Download size={15} /> Instalar Casa

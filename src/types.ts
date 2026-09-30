@@ -59,6 +59,14 @@ export type Family = {
   calendarEntries: CalendarEntry[];
 };
 
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  color: string;
+};
+
 export type View = "welcome" | "create" | "join";
 export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId">;
 export type SortMode = "custom" | "alpha";
