@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArchiveRestore, Check, CircleAlert, House, MapPin, Plus, Settings2, UserRound, Users } from "lucide-react";
+import { ArchiveRestore, Check, CircleAlert, Eye, House, MapPin, Plus, Settings2, Share2, UserRound, Users } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError, api } from "../api/client";
 import { EntryEditModal } from "../components/EntryEditModal";
@@ -20,6 +20,7 @@ import { cacheList, getCachedList, removeCachedList } from "../offline";
 import type { ListDetail, ListItem, ListKind, OfflineMutation, SortMode, Suggestion } from "../types";
 import { ListItemRow } from "./ListItemRow";
 import { ListSettingsModal } from "./ListSettingsModal";
+import { ShareListModal } from "./ShareListModal";
 import { ListIcon } from "./listStyle";
 
 const copy: Record<ListKind, {
@@ -111,7 +112,7 @@ function ListPage({ listId }: { listId: string }) {
   const summary = me.lists.find((list) => list.id === listId);
   useEffect(() => {
     if (!detail && status === "offline" && summary) {
-      setDetail({ list: summary, items: [], locations: [], members: [] });
+      setDetail({ list: summary, items: [], locations: [], members: [], sharedWith: [] });
       setStatus("ready");
     }
   }, [detail, status, summary]);
@@ -166,6 +167,8 @@ function ListContent({
   const [choosingLocation, setChoosingLocation] = useState(false);
   const [editingItem, setEditingItem] = useState<ListItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const sharedCount = (detail.sharedWith ?? []).length;
 
   const visibleItems = useMemo(
     () => items.filter((item) => {
@@ -332,8 +335,22 @@ function ListContent({
             <ListIcon icon={list.icon} color={list.color} size={20} />
             <h2>{list.name}</h2>
           </div>
-          <span>{pendingItems.length} {pendingItems.length === 1 ? "pendiente" : "pendientes"}</span>
+          <div className="list-heading-actions">
+            <span>{pendingItems.length} {pendingItems.length === 1 ? "pendiente" : "pendientes"}</span>
+            {(list.access === "owner" || sharedCount > 0) && (
+              <button className="share-list-button" onClick={() => setShareOpen(true)} aria-label="Compartir lista">
+                <Share2 size={16} />
+                <span>{sharedCount ? `Compartida · ${sharedCount}` : "Compartir"}</span>
+              </button>
+            )}
+          </div>
         </div>
+
+        {readOnly && (
+          <div className="archived-banner read-only-banner">
+            <span><Eye size={15} /> Solo lectura: puedes ver la lista pero no modificarla.</span>
+          </div>
+        )}
 
         {list.archivedAt && (
           <div className="archived-banner">
@@ -618,6 +635,9 @@ function ListContent({
           onSave={(value, nextLocationId, nextAssignee) => editItem(editingItem, value, nextLocationId, nextAssignee)}
           onClose={() => setEditingItem(null)}
         />
+      )}
+      {shareOpen && (
+        <ShareListModal detail={detail} onChanged={onReload} onClose={() => setShareOpen(false)} />
       )}
       {settingsOpen && (
         <ListSettingsModal

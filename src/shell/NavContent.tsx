@@ -34,11 +34,13 @@ function SpaceSection({
     <div className="nav-section">
       <div className="nav-section-title">
         <Link to={space.to} onClick={onNavigate}>{space.title}</Link>
-        <button className="nav-section-action" onClick={() => onNewList(space.familyId)} aria-label={`Nueva lista en ${space.title}`}>
-          <Plus size={16} />
-        </button>
+        {space.canCreate && (
+          <button className="nav-section-action" onClick={() => onNewList(space.familyId)} aria-label={`Nueva lista en ${space.title}`}>
+            <Plus size={16} />
+          </button>
+        )}
       </div>
-      {space.lists.length === 0 && !space.familyId ? (
+      {space.lists.length === 0 && space.key === "personal" ? (
         <button className="nav-item nav-new-list" onClick={() => onNewList(null)}>
           <Plus size={18} />
           <span>Crear mi primera lista</span>
@@ -82,7 +84,7 @@ function SpaceSection({
 
 // Menú completo con cada espacio. Se usa en la barra lateral y en el cajón móvil.
 export function NavContent({ onNavigate, onNewList }: { onNavigate?: () => void; onNewList: (familyId: string | null) => void }) {
-  const { spaces, activeKey } = useNavigation();
+  const { spaces, activeKey, families } = useNavigation();
   return (
     <>
       {spaces.map((space) => (
@@ -91,7 +93,7 @@ export function NavContent({ onNavigate, onNewList }: { onNavigate?: () => void;
       <div className="nav-section">
         <Link className="nav-item nav-family-link" to="/familias/nueva" onClick={onNavigate}>
           <Users size={18} />
-          <span>{spaces.length > 1 ? "Crear o recuperar otra familia" : "Crear o recuperar una familia"}</span>
+          <span>{families.length > 0 ? "Crear o recuperar otra familia" : "Crear o recuperar una familia"}</span>
         </Link>
       </div>
     </>

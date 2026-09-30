@@ -1,28 +1,35 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Copy, RotateCw, Send, Share2, X } from "lucide-react";
 import { api } from "../api/client";
-import { onSyncEvent, syncEvents } from "../data/sync";
-import { offeredRoleLabels } from "../invitations/InvitationCard";
+import { offeredRoleLabels } from "./InvitationCard";
 import type { Invitation } from "../types";
 
 const dateFormatter = new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "long" });
 
 type Created = { invitation: Invitation; link: string };
 
-// Invitar por email y gestionar las invitaciones pendientes (owner y admin). Requiere conexión.
-export function FamilyInvitations({ familyId, familyName, canInviteAdmins }: {
-  familyId: string;
-  familyName: string;
-  canInviteAdmins: boolean;
+export type RoleOption = { value: string; label: string };
+
+// Invitar por email y gestionar las invitaciones pendientes de una familia o una lista. Requiere conexión.
+export function InviteManager({ endpoint, targetName, roleOptions, roleField = "role", refreshOn }: {
+  // /api/families/:id/invitations o /api/lists/:id/invitations
+  endpoint: string;
+  targetName: string;
+  // El primero es el valor por defecto; con una sola opción no se muestra el selector.
+  roleOptions: RoleOption[];
+  // Nombre del campo en la API: "role" en familias, "permission" en listas.
+  roleField?: "role" | "permission";
+  // Evento de sincronización que indica que hay que recargar las pendientes.
+  refreshOn: (reload: () => void) => () => void;
 }) {
   const [pending, setPending] = useState<Invitation[]>([]);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("member");
+  const [role, setRole] = useState(roleOptions[0].value);
   const [created, setCreated] = useState<Created | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const base = `/api/families/${familyId}/invitations`;
+  const base = endpoint;
 
   const load = useCallback(async () => {
     try {
@@ -32,19 +39,21 @@ export function FamilyInvitations({ familyId, familyName, canInviteAdmins }: {
     }
   }, [base]);
 
+  // Se lee desde una ref: quien usa el componente suele pasar una función nueva en cada render.
+  const refreshOnRef = useRef(refreshOn);
+  refreshOnRef.current = refreshOn;
+
   useEffect(() => {
     void load();
-    return onSyncEvent<{ familyId?: string }>(syncEvents.familyChanged, (data) => {
-      if (data?.familyId === familyId) void load();
-    });
-  }, [familyId, load]);
+    return refreshOnRef.current(() => void load());
+  }, [load]);
 
   async function send(targetEmail: string, targetRole: string) {
     setBusy(true);
     setError("");
     setCopied(false);
     try {
-      const result = await api<Created>(base, { method: "POST", body: JSON.stringify({ email: targetEmail, role: targetRole }) });
+      const result = await api<Created>(base, { method: "POST", body: JSON.stringify({ email: targetEmail, [roleField]: targetRole }) });
       setCreated(result);
       setEmail("");
       await load();
@@ -74,9 +83,9 @@ export function FamilyInvitations({ familyId, familyName, canInviteAdmins }: {
   }
 
   async function shareLink(link: string) {
-    const text = `Te invito a ${familyName} en Casa.`;
+    const text = `Te invito a ${targetName} en Casa.`;
     if (navigator.share) {
-      await navigator.share({ title: familyName, text, url: link }).catch(() => undefined);
+      await navigator.share({ title: targetName, text, url: link }).catch(() => undefined);
       return;
     }
     await navigator.clipboard.writeText(`${text}\n${link}`);
@@ -84,8 +93,7 @@ export function FamilyInvitations({ familyId, familyName, canInviteAdmins }: {
   }
 
   return (
-    <div className="settings-card">
-      <h3>Invitar</h3>
+    <div className="invite-manager">
       <form className="inline-form" onSubmit={submit}>
         <input
           type="email"
@@ -95,10 +103,9 @@ export function FamilyInvitations({ familyId, familyName, canInviteAdmins }: {
           aria-label="Email de la persona"
           autoComplete="off"
         />
-        {canInviteAdmins && (
-          <select value={role} onChange={(event) => setRole(event.target.value)} aria-label="Rol">
-            <option value="member">Miembro</option>
-            <option value="admin">Administrador</option>
+        {roleOptions.length > 1 && (
+          <select value={role} onChange={(event) => setRole(event.target.value)} aria-label="Permiso">
+            {roleOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         )}
         <button className="primary-button" disabled={busy || !email.trim()}><Send size={16} /> Invitar</button>

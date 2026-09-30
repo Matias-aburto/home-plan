@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Archive, ArchiveRestore, MapPin, Plus, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRightLeft, MapPin, Plus, Trash2, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import { api } from "../api/client";
 import { SortChips } from "../components/SortChips";
@@ -19,7 +19,7 @@ export function ListSettingsModal({
   onClose: () => void;
 }) {
   const { list } = detail;
-  const { updateList, deleteList } = useMe();
+  const { updateList, deleteList, families, refresh } = useMe();
   const navigate = useNavigate();
   const isOwner = list.access === "owner";
   const [name, setName] = useState(list.name);
@@ -28,6 +28,32 @@ export function ListSettingsModal({
   const [newLocation, setNewLocation] = useState("");
   const [error, setError] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [moveTarget, setMoveTarget] = useState("");
+  const [moving, setMoving] = useState(false);
+  // Destinos posibles: lo personal y cada familia propia, salvo donde ya está.
+  const moveOptions = [
+    ...(list.familyId ? [{ value: "personal", label: "Mis listas (personal)" }] : []),
+    ...families.filter(({ id }) => id !== list.familyId).map(({ id, name }) => ({ value: id, label: name }))
+  ];
+
+  // Requiere conexión: el servidor valida la familia de destino y limpia ubicaciones y responsables.
+  async function moveList() {
+    if (!moveTarget) return;
+    setMoving(true);
+    setError("");
+    try {
+      await api(`/api/lists/${list.id}/move`, {
+        method: "POST",
+        body: JSON.stringify({ familyId: moveTarget === "personal" ? null : moveTarget })
+      });
+      await Promise.all([refresh(), onLocationsChanged()]);
+      onClose();
+    } catch (requestError) {
+      setError(navigator.onLine ? (requestError as Error).message : "Necesitas conexión para mover la lista.");
+    } finally {
+      setMoving(false);
+    }
+  }
   const appearanceChanged = name.trim() !== list.name || icon !== list.icon || color !== list.color;
   const itemCount = detail.items.length;
 
@@ -140,6 +166,22 @@ export function ListSettingsModal({
             </form>
             {error && <div className="form-error">{error}</div>}
           </>
+        )}
+
+        {isOwner && moveOptions.length > 0 && (
+          <div className="list-move">
+            <h3 className="list-settings-heading">Mover a</h3>
+            <p>Las ubicaciones y responsables de sus ítems se quitan, porque eran del lugar anterior.</p>
+            <div className="inline-form">
+              <select value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)} aria-label="Destino">
+                <option value="">Elegir destino</option>
+                {moveOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <button className="secondary-button" disabled={!moveTarget || moving} onClick={() => void moveList()}>
+                <ArrowRightLeft size={16} /> Mover
+              </button>
+            </div>
+          </div>
         )}
 
         {isOwner && (

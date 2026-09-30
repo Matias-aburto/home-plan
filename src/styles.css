@@ -2736,3 +2736,34 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
   .invitation-actions { width: 100%; }
   .invitation-actions button { flex: 1; }
 }
+
+/* Compartir listas */
+.list-heading-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+.share-list-button {
+  height: 34px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--green);
+  background: var(--green-soft);
+  border: 0;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.read-only-banner span { display: flex; align-items: center; gap: 7px; }
+.invite-manager { margin-top: 4px; }
+.shared-heading { margin-top: 22px; }
+.list-move { margin-top: 22px; padding-top: 18px; border-top: 1px solid #eef0ea; }
+.list-move p { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+@media (max-width: 720px) {
+  .list-heading-actions { padding-top: 18px; }
+  .content-heading .list-heading-actions > span { padding-top: 0; }
+  .share-list-button span { display: none; }
+  .share-list-button { width: 34px; padding: 0; justify-content: center; }
+}

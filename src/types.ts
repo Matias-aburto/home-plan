@@ -97,11 +97,22 @@ export type ListItem = {
 // Quienes pueden ser responsables de una tarea (miembros de la familia de la lista).
 export type Assignable = Pick<FamilyMember, "userId" | "name" | "color" | "avatarUrl">;
 
+export type SharedMember = {
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  color: string;
+  permission: "editor" | "viewer";
+};
+
 export type ListDetail = {
   list: ListSummary;
   items: ListItem[];
   locations: Location[];
   members: Assignable[];
+  // Personas con quienes está compartida la lista fuera de su dueño o familia.
+  sharedWith: SharedMember[];
 };
 
 export type InvitationStatus = "pending" | "accepted" | "declined" | "revoked" | "expired";

@@ -7,7 +7,8 @@ import { UserAvatar } from "../components/AccountMenu";
 import { Loading } from "../components/Loading";
 import { useMe } from "../data/MeProvider";
 import type { FamilyMember, FamilyRole } from "../types";
-import { FamilyInvitations } from "./FamilyInvitations";
+import { onSyncEvent, syncEvents } from "../data/sync";
+import { InviteManager } from "../invitations/InviteManager";
 import { useFamilyDetail } from "./useFamilyDetail";
 
 export const roleLabels: Record<FamilyRole, string> = {
@@ -146,7 +147,21 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
         </div>
       </div>
 
-      {isAdmin && <FamilyInvitations familyId={family.id} familyName={family.name} canInviteAdmins={isOwner} />}
+      {isAdmin && (
+        <div className="settings-card">
+          <h3>Invitar</h3>
+          <InviteManager
+            endpoint={`/api/families/${family.id}/invitations`}
+            targetName={family.name}
+            roleOptions={isOwner
+              ? [{ value: "member", label: "Miembro" }, { value: "admin", label: "Administrador" }]
+              : [{ value: "member", label: "Miembro" }]}
+            refreshOn={(reload) => onSyncEvent<{ familyId?: string }>(syncEvents.familyChanged, (data) => {
+              if (data?.familyId === family.id) reload();
+            })}
+          />
+        </div>
+      )}
 
       {isAdmin && legacyAssignees.length > 0 && (
         <div className="settings-card">

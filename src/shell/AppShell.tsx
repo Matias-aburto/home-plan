@@ -111,7 +111,7 @@ export function AppShell({
             {Boolean(entry.badge) && <b>{entry.badge}</b>}
           </Link>
         ))}
-        {barEntries.length < 3 && (
+        {barEntries.length < 3 && activeSpace.canCreate && (
           <button className="nav-item" onClick={() => setNewListFamily(activeSpace.familyId)}>
             <Plus size={20} />
             <span>Nueva lista</span>

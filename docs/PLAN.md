@@ -464,6 +464,13 @@ Motivo: Render free apaga el servidor tras ~15 min sin tráfico y el arranque ta
 - Mover listas entre personal y familia (conserva `list_members`).
 - **Tests**: viewer no puede escribir; quitar a alguien le emite `list:removed`; mover lista cambia quién la ve.
 - **Listo cuando**: una lista personal se comparte con alguien de fuera de la familia.
+- **Resultado** (rama `feature/etapa-5-compartir`):
+  - `list_members` con `editor`/`viewer`. `listAccess()` y `visibleLists()` toman el mayor acceso entre dueño, rol en la familia y compartido directo.
+  - Invitaciones tipo `list` con la misma tabla y flujo de la Etapa 4 (`POST /api/lists/:id/invitations { email, permission }`); no se invita a quien ya tiene acceso.
+  - Gestión: cambiar permiso y quitar (quien administra la lista), dejar de ver (`DELETE /members/me`).
+  - `POST /api/lists/:id/move { familyId | null }`: entre lo personal y una familia propia. Los ítems pierden ubicación y responsable (eran del dueño anterior); lo compartido se mantiene.
+  - Tiempo real: se avisa por el canal de cada usuario con acceso (sin canales `list:<id>`).
+  - Cliente: espacio "Compartidas conmigo" (`/compartidas`), botón Compartir en cada lista, aviso de solo lectura para lectores, "Mover a" en los ajustes de la lista. `InviteManager` es común a familias y listas.
 
 ### Etapa 6: Tiempo real y offline completos
 - Canales y mensajes por lista (§7) reemplazando el aviso por familia de la Etapa 0A; token por sesión con capabilities por canal.

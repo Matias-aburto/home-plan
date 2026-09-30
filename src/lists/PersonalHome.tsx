@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ListChecks, Plus, Users } from "lucide-react";
 import { Link } from "react-router";
+import { useSession } from "../auth/AuthProvider";
 import { useMe } from "../data/MeProvider";
 import { NewListModal } from "./NewListModal";
 import { ListIcon, listKinds } from "./listStyle";
@@ -8,8 +9,9 @@ import { ListIcon, listKinds } from "./listStyle";
 // Vista general de las listas del usuario; también es la bienvenida cuando todavía no tiene ninguna.
 export function PersonalHome() {
   const { lists, families } = useMe();
+  const { user } = useSession();
   const [creating, setCreating] = useState(false);
-  const activeLists = lists.filter((list) => !list.familyId && !list.archivedAt);
+  const activeLists = lists.filter((list) => list.ownerUserId === user?.id && !list.archivedAt);
 
   return (
     <section className="content">
