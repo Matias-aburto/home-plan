@@ -2553,8 +2553,7 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 
 .inline-form input,
 .inline-form select,
-.member-row select,
-.legacy-row select {
+.member-row select {
   min-width: 0;
   height: 44px;
   padding: 0 12px;
@@ -2567,8 +2566,7 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 }
 
 .inline-form .primary-button,
-.inline-form .secondary-button,
-.legacy-row .secondary-button { height: 44px; padding: 0 16px; flex: 0 0 auto; }
+.inline-form .secondary-button { height: 44px; padding: 0 16px; flex: 0 0 auto; }
 
 .member-list { display: grid; gap: 4px; }
 
@@ -2613,20 +2611,6 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 
 .icon-button:hover { color: #a84845; background: #faefed; }
 
-.legacy-row {
-  padding: 10px 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.legacy-row > span { min-width: 120px; flex: 1; }
-.legacy-row strong { display: block; }
-.legacy-row small { color: var(--muted); font-size: 12px; }
-.legacy-row select { flex: 1 1 160px; }
-
-.legacy-assignee-note { margin: 0 0 8px; color: #8d6214; font-size: 12px; }
 
 @media (max-width: 720px) {
   .settings-card { padding: 16px; }

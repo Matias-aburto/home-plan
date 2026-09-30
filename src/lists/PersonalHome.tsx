@@ -31,7 +31,7 @@ export function PersonalHome() {
             </button>
             {families.length === 0 && (
               <Link className="secondary-button" to="/familias/nueva">
-                <Users size={18} /> Crear o recuperar una familia
+                <Users size={18} /> Crear una familia
               </Link>
             )}
           </div>

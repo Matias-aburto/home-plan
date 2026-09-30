@@ -93,7 +93,7 @@ export function NavContent({ onNavigate, onNewList }: { onNavigate?: () => void;
       <div className="nav-section">
         <Link className="nav-item nav-family-link" to="/familias/nueva" onClick={onNavigate}>
           <span className="nav-icon"><Users size={17} /></span>
-          <span>{families.length > 0 ? "Crear o recuperar otra familia" : "Crear o recuperar una familia"}</span>
+          <span>{families.length > 0 ? "Crear otra familia" : "Crear una familia"}</span>
         </Link>
       </div>
     </>

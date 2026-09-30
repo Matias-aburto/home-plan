@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { CircleAlert, DoorOpen, Link2, Trash2 } from "lucide-react";
+import { CircleAlert, DoorOpen, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../api/client";
 import { useSession } from "../auth/AuthProvider";
@@ -32,7 +32,6 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
   const [busy, setBusy] = useState(false);
   const [transferTo, setTransferTo] = useState("");
   const [confirming, setConfirming] = useState<"transfer" | "leave" | "delete" | null>(null);
-  const [legacyChoice, setLegacyChoice] = useState<Record<string, string>>({});
 
   if (missing) {
     return (
@@ -48,7 +47,7 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
   }
   if (!detail || !user) return <Loading />;
 
-  const { family, members, legacyAssignees } = detail;
+  const { family, members } = detail;
   const myRole = family.role;
   const isOwner = myRole === "owner";
   const isAdmin = myRole === "owner" || myRole === "admin";
@@ -160,38 +159,6 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
               if (data?.familyId === family.id) reload();
             })}
           />
-        </div>
-      )}
-
-      {isAdmin && legacyAssignees.length > 0 && (
-        <div className="settings-card">
-          <h3>Responsables anteriores</h3>
-          <p className="settings-hint">
-            Estas tareas tenían un responsable escrito a mano. Elige a qué miembro corresponde cada nombre.
-          </p>
-          {legacyAssignees.map((legacy) => (
-            <div className="legacy-row" key={legacy.name}>
-              <span><strong>{legacy.name}</strong><small>{legacy.count} tarea{legacy.count === 1 ? "" : "s"}</small></span>
-              <select
-                value={legacyChoice[legacy.name] ?? ""}
-                onChange={(event) => setLegacyChoice({ ...legacyChoice, [legacy.name]: event.target.value })}
-                aria-label={`Miembro para ${legacy.name}`}
-              >
-                <option value="">Elegir miembro</option>
-                {members.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}
-              </select>
-              <button
-                className="secondary-button"
-                disabled={busy || !legacyChoice[legacy.name]}
-                onClick={() => void run(() => api(`${base}/legacy-assignees`, {
-                  method: "POST",
-                  body: JSON.stringify({ name: legacy.name, userId: legacyChoice[legacy.name] })
-                }))}
-              >
-                <Link2 size={16} /> Vincular
-              </button>
-            </div>
-          ))}
         </div>
       )}
 

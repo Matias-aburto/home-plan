@@ -1,13 +1,11 @@
 import { useState, type FormEvent } from "react";
-import { ArrowLeft, Download, House, KeyRound, Users } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { ArrowLeft, Download, House, Users } from "lucide-react";
+import { useNavigate } from "react-router";
 import { AccountMenu } from "../components/AccountMenu";
 import { useMe } from "../data/MeProvider";
 import type { User } from "../types";
 
-type View = "welcome" | "create" | "claim";
-
-// Crear una familia nueva o reclamar una del modelo anterior con su código.
+// Crear una familia nueva. Para entrar a una existente se necesita una invitación.
 export function NewFamilyPage({
   user,
   canInstall,
@@ -21,11 +19,7 @@ export function NewFamilyPage({
 }) {
   const me = useMe();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const initialCode = (params.get("codigo") || "").toUpperCase();
-  const [view, setView] = useState<View>(initialCode ? "claim" : "welcome");
   const [name, setName] = useState("");
-  const [code, setCode] = useState(initialCode);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -34,18 +28,13 @@ export function NewFamilyPage({
     setSubmitting(true);
     setError("");
     try {
-      const family = view === "create" ? await me.createFamily(name.trim()) : await me.claimFamily(code.trim());
+      const family = await me.createFamily(name.trim());
       navigate(`/familias/${family.id}`, { replace: true });
     } catch (requestError) {
       setError(navigator.onLine ? (requestError as Error).message : "Necesitas conexión para esto.");
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function changeView(next: View) {
-    setError("");
-    setView(next);
   }
 
   return (
@@ -61,53 +50,33 @@ export function NewFamilyPage({
           </div>
         </header>
 
-        {view === "welcome" ? (
-          <div className="welcome-content animate-in">
-            <div className="eyebrow">Familias</div>
-            <h1>Organícense<br />juntos.</h1>
-            <p>Una familia comparte listas y un calendario. Puedes ser parte de varias.</p>
-            <div className="welcome-actions">
-              <button className="primary-button" onClick={() => changeView("create")}>
-                <Users size={19} /> Crear una familia
-              </button>
-              <button className="secondary-button" onClick={() => changeView("claim")}>
-                <KeyRound size={19} /> Tengo un código de familia
-              </button>
-              <button className="text-button" onClick={() => navigate("/")}>
-                Volver a mis listas
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="form-content animate-in">
-            <button className="back-button" onClick={() => changeView("welcome")} aria-label="Volver">
-              <ArrowLeft size={20} />
+        <div className="form-content animate-in">
+          <button className="back-button" onClick={() => navigate("/")} aria-label="Volver">
+            <ArrowLeft size={20} />
+          </button>
+          <div className="form-icon"><Users /></div>
+          <h1>Crea tu familia</h1>
+          <p>
+            Empieza con una lista de compras y otra de tareas, más un calendario compartido.
+            Después podrás invitar a los demás. Para entrar a una familia existente, pide que te inviten.
+          </p>
+          <form onSubmit={submit}>
+            <label htmlFor="family-input">Nombre de la familia</label>
+            <input
+              id="family-input"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Ej. Familia González"
+              maxLength={50}
+              autoFocus
+              autoComplete="off"
+            />
+            {error && <div className="form-error">{error}</div>}
+            <button className="primary-button" disabled={submitting || !name.trim()}>
+              {submitting ? "Un momento…" : "Crear familia"}
             </button>
-            <div className="form-icon">{view === "create" ? <Users /> : <KeyRound />}</div>
-            <h1>{view === "create" ? "Crea tu familia" : "Recupera tu familia"}</h1>
-            <p>
-              {view === "create"
-                ? "Empieza con una lista de compras y otra de tareas."
-                : "Si usaban Casa con un código, ingrésalo para quedar como dueño de esa familia y sus listas."}
-            </p>
-            <form onSubmit={submit}>
-              <label htmlFor="family-input">{view === "create" ? "Nombre de la familia" : "Código familiar"}</label>
-              <input
-                id="family-input"
-                value={view === "create" ? name : code}
-                onChange={(event) => view === "create" ? setName(event.target.value) : setCode(event.target.value.toUpperCase())}
-                placeholder={view === "create" ? "Ej. Familia González" : "Ej. A4B8K2MX"}
-                maxLength={view === "create" ? 50 : 20}
-                autoFocus
-                autoComplete="off"
-              />
-              {error && <div className="form-error">{error}</div>}
-              <button className="primary-button" disabled={submitting || !(view === "create" ? name : code).trim()}>
-                {submitting ? "Un momento…" : view === "create" ? "Crear familia" : "Recuperar familia"}
-              </button>
-            </form>
-          </div>
-        )}
+          </form>
+        </div>
         <footer>
           <span>Conectado como {user.email}</span>
           {canInstall && (

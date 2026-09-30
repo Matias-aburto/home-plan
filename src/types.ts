@@ -54,7 +54,6 @@ export type FamilyDetail = {
   family: FamilySummary;
   members: FamilyMember[];
   locations: Location[];
-  legacyAssignees: { name: string; count: number }[];
 };
 
 export type ListKind = "shopping" | "tasks" | "checklist";
@@ -85,8 +84,6 @@ export type ListItem = {
   position: number;
   locationId: string | null;
   assigneeUserId: string | null;
-  // Nombre del responsable en el modelo anterior, hasta vincularlo a un miembro.
-  legacyAssignee: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

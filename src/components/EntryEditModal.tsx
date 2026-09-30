@@ -7,7 +7,6 @@ export function EntryEditModal({
   value,
   locationId,
   assigneeId = null,
-  legacyAssignee = null,
   locations,
   assignees = [],
   onSave,
@@ -17,8 +16,6 @@ export function EntryEditModal({
   value: string;
   locationId: string | null;
   assigneeId?: string | null;
-  // Responsable escrito a mano en el modelo anterior; se muestra hasta elegir un miembro.
-  legacyAssignee?: string | null;
   locations: Location[];
   // Vacío: la lista no usa responsables.
   assignees?: Assignable[];
@@ -27,7 +24,7 @@ export function EntryEditModal({
 }) {
   const [nextValue, setNextValue] = useState(value);
   const [nextLocationId, setNextLocationId] = useState(locationId || "");
-  // undefined: no se tocó (conserva el responsable anterior, incluido el del modelo antiguo).
+  // undefined: no se tocó (se conserva el responsable actual).
   const [nextAssignee, setNextAssignee] = useState<string | null | undefined>(undefined);
   const shownAssignee = nextAssignee === undefined ? assigneeId : nextAssignee;
   const [saving, setSaving] = useState(false);
@@ -82,13 +79,10 @@ export function EntryEditModal({
           {assignees.length > 0 && (
             <fieldset>
               <legend>Asignar a</legend>
-              {legacyAssignee && nextAssignee === undefined && (
-                <p className="legacy-assignee-note">Antes: {legacyAssignee}</p>
-              )}
               <div className="edit-option-chips">
                 <button
                   type="button"
-                  className={!shownAssignee && (nextAssignee !== undefined || !legacyAssignee) ? "selected" : ""}
+                  className={!shownAssignee ? "selected" : ""}
                   onClick={() => setNextAssignee(null)}
                 >
                   Sin asignar

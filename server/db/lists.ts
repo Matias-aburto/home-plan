@@ -148,7 +148,7 @@ export async function moveList(listId: string, target: { ownerUserId: string } |
       args: [ownerUserId, familyId, new Date().toISOString(), listId]
     },
     {
-      sql: "UPDATE list_items SET location_id = NULL, assignee_user_id = NULL, legacy_assignee = NULL WHERE list_id = ?",
+      sql: "UPDATE list_items SET location_id = NULL, assignee_user_id = NULL WHERE list_id = ?",
       args: [listId]
     },
     // Quien pasa a ser dueño ya no necesita figurar como invitado.

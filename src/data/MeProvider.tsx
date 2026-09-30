@@ -15,9 +15,8 @@ type MeContext = {
   // Responder desde la bandeja requiere conexión.
   respondInvitation: (invitationId: string, action: "accept" | "decline") => Promise<Invitation>;
   refresh: () => Promise<void>;
-  // Requieren conexión: el servidor crea el id de la familia o valida el código.
+  // Requiere conexión: el servidor crea el id de la familia.
   createFamily: (name: string) => Promise<FamilySummary>;
-  claimFamily: (code: string) => Promise<FamilySummary>;
   createList: (input: NewListInput, familyId?: string | null) => Promise<string>;
   updateList: (listId: string, changes: ListChanges) => Promise<void>;
   deleteList: (listId: string) => Promise<void>;
@@ -114,12 +113,6 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
     return family;
   }, [forceRefresh]);
 
-  const claimFamily = useCallback(async (code: string) => {
-    const family = await api<FamilySummary>("/api/families/claim", { method: "POST", body: JSON.stringify({ code }) });
-    await forceRefresh();
-    return family;
-  }, [forceRefresh]);
-
   const createList = useCallback(async (input: NewListInput, familyId: string | null = null) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -165,11 +158,11 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
 
   const value = useMemo(
     () => ({
-      lists, families, invitations, loaded, refresh, respondInvitation, createFamily, claimFamily,
+      lists, families, invitations, loaded, refresh, respondInvitation, createFamily,
       createList, updateList, deleteList, reorderLists, patchListLocally
     }),
     [
-      lists, families, invitations, loaded, refresh, respondInvitation, createFamily, claimFamily,
+      lists, families, invitations, loaded, refresh, respondInvitation, createFamily,
       createList, updateList, deleteList, reorderLists, patchListLocally
     ]
   );

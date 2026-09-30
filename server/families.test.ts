@@ -29,39 +29,6 @@ async function familyLists(agent: Agent, familyId: string) {
   return ((await agent.get("/api/me")).body.lists as ListSummary[]).filter((list) => list.familyId === familyId);
 }
 
-// Familia completa del modelo anterior (por código), como las que hay hoy en producción.
-async function seedLegacyFamily(code: string) {
-  const now = new Date().toISOString();
-  await db.batch([
-    { sql: "INSERT INTO families (id, name, created_at) VALUES (?, ?, ?)", args: [code, "Familia antigua", now] },
-    { sql: "INSERT INTO locations (id, family_id, name) VALUES (?, ?, ?)", args: [`${code}-loc`, code, "Campo"] },
-    {
-      sql: `INSERT INTO shopping_items (id, family_id, name, location_id, completed, position, created_at, updated_at)
-        VALUES (?, ?, 'Leche', ?, 0, 0, ?, ?)`,
-      args: [`${code}-item1`, code, `${code}-loc`, now, now]
-    },
-    {
-      sql: `INSERT INTO shopping_items (id, family_id, name, completed, position, created_at, updated_at, completed_at)
-        VALUES (?, ?, 'Pan', 1, 1, ?, ?, ?)`,
-      args: [`${code}-item2`, code, now, now, now]
-    },
-    {
-      sql: `INSERT INTO household_tasks (id, family_id, title, assignee, completed, position, created_at, updated_at)
-        VALUES (?, ?, 'Regar', 'Francisca', 0, 0, ?, ?)`,
-      args: [`${code}-task1`, code, now, now]
-    },
-    {
-      sql: `INSERT INTO learned_products (family_id, name_key, name, uses, last_used_at) VALUES (?, 'lechuga morada', 'Lechuga morada', 3, ?)`,
-      args: [code, now]
-    },
-    {
-      sql: `INSERT INTO calendar_entries (id, family_id, title, kind, event_date, recurrence, created_at, updated_at)
-        VALUES (?, ?, 'Cumpleaños', 'event', '2026-10-12', 'yearly', ?, ?)`,
-      args: [`${code}-cal`, code, now, now]
-    }
-  ], "write");
-}
-
 describe("salud y tiempo real", () => {
   it("responde health sin tiempo real configurado", async () => {
     const response = await request(app).get("/api/health").expect(200);
@@ -237,61 +204,6 @@ describe("responsables de tareas", () => {
     expect(cleared.body.assigneeUserId).toBeNull();
     const detail = (await owner.agent.get(`/api/lists/${tasks.id}`)).body;
     expect(detail.members).toEqual([expect.objectContaining({ userId: owner.user.id })]);
-  });
-});
-
-describe("familias del modelo por código", () => {
-  it("se migran a listas conservando ítems, ubicaciones, calendario y productos", async () => {
-    await seedLegacyFamily("LEGADO01");
-    await migrate();
-    await migrate();
-    const lists = await db.execute({ sql: "SELECT id, name FROM lists WHERE family_id = ? ORDER BY name", args: ["LEGADO01"] });
-    expect(lists.rows.map((row) => String(row.name))).toEqual(["Compras", "Por hacer"]);
-
-    const { agent, user } = await loginAgent();
-    const claimed = await agent.post("/api/families/claim").send({ code: "legado01" }).expect(200);
-    expect(claimed.body).toMatchObject({ id: "LEGADO01", role: "owner" });
-
-    const familyListIds = await familyLists(agent, "LEGADO01");
-    const shopping = (await agent.get(`/api/lists/${familyListIds.find(({ kind }) => kind === "shopping")!.id}`)).body;
-    expect(shopping.items.map(({ id, title, completed }: { id: string; title: string; completed: boolean }) => [id, title, completed]))
-      .toEqual([["LEGADO01-item1", "Leche", false], ["LEGADO01-item2", "Pan", true]]);
-    expect(shopping.items[0].locationId).toBe("LEGADO01-loc");
-    expect(shopping.locations).toEqual([{ id: "LEGADO01-loc", name: "Campo" }]);
-    const suggestions = (await agent.get(`/api/lists/${shopping.list.id}/suggestions`).query({ q: "lechu" })).body;
-    expect(suggestions[0].name).toBe("Lechuga morada");
-
-    const tasks = (await agent.get(`/api/lists/${familyListIds.find(({ kind }) => kind === "tasks")!.id}`)).body;
-    expect(tasks.items[0]).toMatchObject({ title: "Regar", legacyAssignee: "Francisca", assigneeUserId: null });
-
-    const detail = (await agent.get("/api/families/LEGADO01")).body;
-    expect(detail.legacyAssignees).toEqual([{ name: "Francisca", count: 1 }]);
-    await agent.post("/api/families/LEGADO01/legacy-assignees").send({ name: "Francisca", userId: user.id }).expect(200);
-    const linked = (await agent.get(`/api/lists/${tasks.list.id}`)).body;
-    expect(linked.items[0]).toMatchObject({ legacyAssignee: null, assigneeUserId: user.id });
-
-    const calendar = (await agent.get("/api/families/LEGADO01/calendar").expect(200)).body;
-    expect(calendar.map(({ title }: { title: string }) => title)).toEqual(["Cumpleaños"]);
-  });
-
-  it("solo se reclama una vez", async () => {
-    await seedLegacyFamily("LEGADO02");
-    await migrate();
-    const first = await loginAgent();
-    const second = await loginAgent();
-    await first.agent.post("/api/families/claim").send({ code: "LEGADO02" }).expect(200);
-    await first.agent.post("/api/families/claim").send({ code: "LEGADO02" }).expect(200);
-    await second.agent.post("/api/families/claim").send({ code: "LEGADO02" }).expect(409);
-    await second.agent.post("/api/families/claim").send({ code: "NOEXISTE" }).expect(404);
-    await second.agent.post("/api/families/claim").send({}).expect(400);
-  });
-
-  it("no se vuelven a crear listas si la familia borra las suyas", async () => {
-    const { agent } = await loginAgent();
-    const family = await createFamily(agent);
-    for (const list of await familyLists(agent, family.id)) await agent.delete(`/api/lists/${list.id}`).expect(204);
-    await migrate();
-    expect(await familyLists(agent, family.id)).toEqual([]);
   });
 });
 

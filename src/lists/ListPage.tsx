@@ -190,7 +190,7 @@ function ListContent({
   const selectedLocation = locations.find(({ id }) => id === locationId);
   const selectedAssignee = members.find(({ userId }) => userId === assigneeId);
   const assigneeName = (item: ListItem) =>
-    members.find(({ userId }) => userId === item.assigneeUserId)?.name ?? item.legacyAssignee;
+    members.find(({ userId }) => userId === item.assigneeUserId)?.name ?? null;
 
   useEffect(() => {
     if (list.kind !== "shopping" || title.trim().length < 2) {
@@ -242,7 +242,6 @@ function ListContent({
         position: nextListPosition(items),
         locationId: usesLocations ? locationId || null : null,
         assigneeUserId: usesAssignees ? assigneeId || null : null,
-        legacyAssignee: null,
         createdBy: list.ownerUserId,
         createdAt: now,
         updatedAt: now,
@@ -280,7 +279,7 @@ function ListContent({
     });
   }
 
-  // nextAssignee undefined: no se tocó el responsable (se conserva, incluido el del modelo anterior).
+  // nextAssignee undefined: no se tocó el responsable (se conserva).
   async function editItem(item: ListItem, nextTitle: string, nextLocationId: string | null, nextAssignee?: string | null) {
     const formatted = capitalizeFirst(nextTitle);
     const locationValue = usesLocations ? nextLocationId : null;
@@ -291,7 +290,7 @@ function ListContent({
             ...candidate,
             title: formatted,
             locationId: locationValue,
-            ...(assigneeChanged ? { assigneeUserId: nextAssignee ?? null, legacyAssignee: null } : {}),
+            ...(assigneeChanged ? { assigneeUserId: nextAssignee ?? null } : {}),
             updatedAt: new Date().toISOString()
           }
         : candidate
@@ -629,7 +628,6 @@ function ListContent({
           value={editingItem.title}
           locationId={editingItem.locationId}
           assigneeId={editingItem.assigneeUserId}
-          legacyAssignee={editingItem.legacyAssignee}
           locations={usesLocations ? locations : []}
           assignees={usesAssignees ? members : []}
           onSave={(value, nextLocationId, nextAssignee) => editItem(editingItem, value, nextLocationId, nextAssignee)}

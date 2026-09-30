@@ -1,6 +1,8 @@
 # Plan: cuentas, listas personalizadas y familias
 
-Estado: **listo para publicar**. Etapas 0A a 7 completadas en ramas locales encadenadas (`feature/etapa-0-preparacion` … `feature/etapa-7-cierre`); falta el merge a `master` y el deploy.
+Estado: **publicado**. Etapas 0A a 7 completadas.
+
+> **Decisión final (antes de publicar):** se parte de cero. Se quitaron la migración de las familias por código, su reclamo con el código familiar y la vinculación de responsables antiguos (descritos en las etapas 3 y 7). Las tablas del modelo anterior (`shopping_items`, `household_tasks`, `locations`, `learned_products`) ya no se crean ni se usan; en la base de producción quedan intactas, sin uso, y se pueden borrar más adelante.
 
 ## 1. Objetivo
 

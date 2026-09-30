@@ -70,8 +70,8 @@ export async function createFamily(userId: string, name: string) {
   ];
   await db.batch([
     {
-      sql: "INSERT INTO families (id, name, created_at, created_by, lists_migrated_at) VALUES (?, ?, ?, ?, ?)",
-      args: [id, name, now, userId, now]
+      sql: "INSERT INTO families (id, name, created_at, created_by) VALUES (?, ?, ?, ?)",
+      args: [id, name, now, userId]
     },
     {
       sql: "INSERT INTO family_members (family_id, user_id, role, joined_at) VALUES (?, ?, 'owner', ?)",
@@ -103,10 +103,6 @@ export async function deleteFamily(familyId: string) {
     { sql: "DELETE FROM calendar_entries WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM family_members WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM invitations WHERE family_id = ?", args: [key] },
-    { sql: "DELETE FROM shopping_items WHERE family_id = ?", args: [key] },
-    { sql: "DELETE FROM household_tasks WHERE family_id = ?", args: [key] },
-    { sql: "DELETE FROM learned_products WHERE family_id = ?", args: [key] },
-    { sql: "DELETE FROM locations WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM families WHERE id = ?", args: [key] }
   ], "write");
 }
@@ -141,45 +137,4 @@ export async function transferOwnership(familyId: string, fromUserId: string, to
     { sql: "UPDATE family_members SET role = 'owner' WHERE family_id = ? AND user_id = ?", args: [key, toUserId] },
     { sql: "UPDATE family_members SET role = 'admin' WHERE family_id = ? AND user_id = ?", args: [key, fromUserId] }
   ], "write");
-}
-
-// Una familia del modelo por código sin miembros la reclama quien ingresa su código.
-export async function claimFamily(code: string, userId: string) {
-  const key = familyKey(code);
-  const family = await db.execute({ sql: "SELECT id FROM families WHERE id = ?", args: [key] });
-  if (!family.rows[0]) return "missing" as const;
-  const members = await db.execute({ sql: "SELECT 1 FROM family_members WHERE family_id = ? LIMIT 1", args: [key] });
-  if (members.rows.length > 0) return "claimed" as const;
-  const now = new Date().toISOString();
-  await db.batch([
-    {
-      sql: "INSERT INTO family_members (family_id, user_id, role, joined_at) VALUES (?, ?, 'owner', ?)",
-      args: [key, userId, now]
-    },
-    {
-      sql: "UPDATE families SET legacy_code_claimed_at = ?, created_by = COALESCE(created_by, ?) WHERE id = ?",
-      args: [now, userId, key]
-    }
-  ], "write");
-  return key;
-}
-
-// Nombres de responsables del modelo anterior ("Matías", "Francisca") que aún no se vinculan a un miembro.
-export async function legacyAssignees(familyId: string) {
-  const result = await db.execute({
-    sql: `SELECT legacy_assignee AS name, COUNT(*) AS total FROM list_items
-      WHERE legacy_assignee IS NOT NULL AND assignee_user_id IS NULL
-        AND list_id IN (SELECT id FROM lists WHERE family_id = ?)
-      GROUP BY legacy_assignee ORDER BY legacy_assignee`,
-    args: [familyKey(familyId)]
-  });
-  return result.rows.map((row) => ({ name: String(row.name), count: Number(row.total) }));
-}
-
-export async function linkLegacyAssignee(familyId: string, name: string, userId: string) {
-  await db.execute({
-    sql: `UPDATE list_items SET assignee_user_id = ?, legacy_assignee = NULL
-      WHERE legacy_assignee = ? AND list_id IN (SELECT id FROM lists WHERE family_id = ?)`,
-    args: [userId, name, familyKey(familyId)]
-  });
 }

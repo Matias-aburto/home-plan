@@ -10,7 +10,6 @@ PWA para organizar el hogar: listas personales y compartidas, familias con lista
 - **Invitaciones** por email o enlace (un solo uso, vencen en 7 días), con bandeja para aceptar o rechazar.
 - **Compartir una lista** con personas puntuales, con permiso de edición o solo lectura. Las listas se pueden mover entre lo personal y una familia.
 - **Sin conexión.** Los cambios se guardan en el dispositivo (IndexedDB) y se envían en orden al recuperar la red.
-- **Familias del modelo anterior** (por código): se migran solas a listas y se recuperan ingresando el código en "Crear o recuperar una familia".
 
 El diseño completo y las decisiones están en [docs/PLAN.md](docs/PLAN.md).
 
@@ -42,7 +41,7 @@ Las migraciones son idempotentes y se aplican al arrancar el servidor local (`np
 npm test
 ```
 
-- `server/*.test.ts`: API completa contra una base libSQL temporal (sesiones, permisos, listas, familias, invitaciones, compartir, migración del modelo anterior). Google se simula.
+- `server/*.test.ts`: API completa contra una base libSQL temporal (sesiones, permisos, listas, familias, invitaciones, compartir, y migrar sobre una base con el esquema anterior). Google se simula.
 - `src/**/*.test.ts`: lógica del cliente (orden de listas, calendario y la cola offline con IndexedDB simulada).
 
 ## Producción (Vercel)

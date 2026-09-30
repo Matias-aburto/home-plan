@@ -1,12 +1,9 @@
 import { Router } from "express";
 import {
-  claimFamily,
   createFamily,
   deleteFamily,
   familySummary,
   getMembership,
-  legacyAssignees,
-  linkLegacyAssignee,
   listMembers,
   removeMember,
   renameFamily,
@@ -40,31 +37,14 @@ familiesRouter.post("/", async (request, response) => {
   return response.status(201).json(await familySummary(familyId, user.id));
 });
 
-// Reclamar una familia del modelo por código: solo si todavía nadie la reclamó.
-familiesRouter.post("/claim", async (request, response) => {
-  const code = cleanText(request.body.code, 20);
-  if (!code) return response.status(400).json({ message: "Escribe el código de la familia." });
-  const user = currentUser(response);
-  const result = await claimFamily(code, user.id);
-  if (result === "missing") return response.status(404).json({ message: "No encontramos una familia con ese código." });
-  if (result === "claimed") {
-    const role = await getMembership(code, user.id);
-    if (role) return response.json(await familySummary(code, user.id));
-    return response.status(409).json({ message: "Esta familia ya tiene dueño. Pídele que te invite." });
-  }
-  await broadcastMembership(result, [user.id]);
-  return response.json(await familySummary(result, user.id));
-});
-
 familiesRouter.get<FamilyParams>("/:id", requireMember(), async (request, response) => {
   const familyId = request.params.id.toUpperCase();
-  const [summary, members, locations, legacy] = await Promise.all([
+  const [summary, members, locations] = await Promise.all([
     familySummary(familyId, currentUser(response).id),
     listMembers(familyId),
-    listPlaces({ ownerUserId: null, familyId }),
-    legacyAssignees(familyId)
+    listPlaces({ ownerUserId: null, familyId })
   ]);
-  return response.json({ family: summary, members, locations, legacyAssignees: legacy });
+  return response.json({ family: summary, members, locations });
 });
 
 familiesRouter.patch<FamilyParams>("/:id", requireMember("admin"), async (request, response) => {
@@ -127,16 +107,4 @@ familiesRouter.post<FamilyParams>("/:id/transfer", requireMember("owner"), async
   await transferOwnership(familyId, me.id, targetId);
   await broadcastMembership(familyId, [me.id, targetId]);
   return response.json(await familySummary(familyId, me.id));
-});
-
-// Vincula un responsable del modelo anterior ("Matías") con un miembro real.
-familiesRouter.post<FamilyParams>("/:id/legacy-assignees", requireMember("admin"), async (request, response) => {
-  const familyId = request.params.id.toUpperCase();
-  const name = cleanText(request.body.name, 50);
-  const userId = cleanText(request.body.userId, 50);
-  if (!name || !userId) return response.status(400).json({ message: "Elige a quién corresponde." });
-  if (!(await getMembership(familyId, userId))) return response.status(404).json(memberNotFound);
-  await linkLegacyAssignee(familyId, name, userId);
-  await notifyFamilyChanged(familyId);
-  return response.json({ legacyAssignees: await legacyAssignees(familyId) });
 });

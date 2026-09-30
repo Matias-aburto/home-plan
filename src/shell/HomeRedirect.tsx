@@ -3,17 +3,10 @@ import { Loading } from "../components/Loading";
 import { useMe } from "../data/MeProvider";
 import { lastPathKey } from "./AppShell";
 
-// Decide adónde llevar al abrir la app: enlace antiguo con código, última vista o primera lista.
+// Decide adónde llevar al abrir la app: última vista, primera lista o primera familia.
 export function HomeRedirect() {
   const { loaded, lists, families } = useMe();
   if (!loaded) return <Loading />;
-
-  // Los enlaces que se compartían antes (?familia=CODIGO) llevan a recuperar esa familia.
-  const legacyCode = new URLSearchParams(window.location.search).get("familia");
-  if (legacyCode) {
-    const known = families.find(({ id }) => id === legacyCode.toUpperCase());
-    return <Navigate to={known ? `/familias/${known.id}` : `/familias/nueva?codigo=${encodeURIComponent(legacyCode)}`} replace />;
-  }
 
   const lastPath = localStorage.getItem(lastPathKey);
   const [, section, id] = lastPath?.split("/") ?? [];

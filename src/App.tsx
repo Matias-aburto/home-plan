@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from "react-router";
+import { Navigate, Route, Routes } from "react-router";
 import { useSession } from "./auth/AuthProvider";
 import { LoginPage } from "./auth/LoginPage";
 import { IosInstallGuide } from "./components/IosInstallGuide";
@@ -70,16 +70,9 @@ function SignedInApp({
           <Route path="familias/:familyId" element={<FamilyHomePage />} />
           <Route path="familias/:familyId/calendario" element={<FamilyCalendarRoute />} />
           <Route path="familias/:familyId/ajustes" element={<FamilySettingsRoute />} />
-          <Route path="familia/*" element={<LegacyFamilyRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </ConnectionProvider>
   );
-}
-
-// Rutas del modelo anterior (/familia...): se conserva ?familia=CODIGO para ofrecer recuperarla.
-function LegacyFamilyRedirect() {
-  const { search } = useLocation();
-  return <Navigate to={{ pathname: "/", search }} replace />;
 }
