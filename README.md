@@ -18,11 +18,23 @@ En desarrollo se usa una base libSQL local en `data/home-plan.db`. Si existe el 
 Para conectarse a Turso:
 
 ```bash
-TURSO_DATABASE_URL=libsql://... 
+TURSO_DATABASE_URL=libsql://...
 TURSO_AUTH_TOKEN=...
 ```
 
-## Producción
+El tiempo real usa [Ably](https://ably.com). Sin `ABLY_API_KEY` la app funciona igual, pero los cambios de otros dispositivos se ven al recargar o reconectar.
+
+```bash
+ABLY_API_KEY=...
+```
+
+## Producción (Vercel)
+
+La app se despliega en Vercel: el frontend se sirve como estático y la API (`api/index.ts` → `server/app.ts`) como función serverless. Configuración en `vercel.json`.
+
+Variables de entorno en Vercel: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ABLY_API_KEY`. El build ejecuta `npm run db:init` para aplicar las migraciones antes de compilar.
+
+Para correrla como servidor Node tradicional:
 
 ```bash
 npm run build
@@ -40,7 +52,7 @@ El servidor publica la aplicación completa en `http://localhost:3001`.
 
 - Sin cuentas: el código familiar funciona como acceso compartido.
 - Los datos se guardan en Turso/libSQL.
-- La sincronización usa WebSockets.
+- La sincronización en tiempo real usa Ably (aviso de cambios + recarga desde la API).
 - La aplicación es una PWA instalable.
 - Compras, tareas y eventos del calendario pueden modificarse sin conexión; IndexedDB conserva una cola que se sincroniza automáticamente.
 - La familia de prueba siempre está disponible con el código `CASA`.
