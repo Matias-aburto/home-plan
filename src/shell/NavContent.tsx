@@ -96,7 +96,8 @@ export function NavContent({ onNavigate, onCreate }: { onNavigate?: () => void; 
       {spaces.map((space) => (
         <SpaceSection key={space.key} space={space} activeKey={activeKey} onNavigate={onNavigate} onCreate={onCreate} />
       ))}
-      <div className="nav-section">
+      {/* Separado al final: crear un grupo no es parte del último espacio. */}
+      <div className="nav-section sidebar-bottom nav-create-group">
         <Link className="nav-item nav-family-link" to="/grupos/nuevo" onClick={onNavigate}>
           <span className="nav-icon"><Users size={17} /></span>
           <span>{families.length > 0 ? "Crear otro grupo" : "Crear un grupo"}</span>

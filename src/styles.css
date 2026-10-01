@@ -2550,3 +2550,4 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 .agenda-legend .legend-colors { width: 30px; padding: 0; justify-content: center; color: var(--muted); }
 .space-color-row { min-width: 0; margin: 0 0 14px; padding: 0; border: 0; }
 .space-color-row legend { margin-bottom: 8px; color: #435149; font-size: 13px; font-weight: 700; }
+.nav-create-group { padding-top: 14px; border-top: 1px solid var(--line); }
