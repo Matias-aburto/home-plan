@@ -16,5 +16,5 @@ app.use(express.static(distDirectory));
 app.get("/{*splat}", (_request, response) => response.sendFile(path.join(distDirectory, "index.html")));
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`Casa está disponible en http://localhost:${port}`);
+  console.log(`La app está disponible en http://localhost:${port}`);
 });

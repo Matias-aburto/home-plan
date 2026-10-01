@@ -20,7 +20,7 @@ export const familiesRouter = Router();
 
 type MemberParams = FamilyParams & { userId: string };
 
-const memberNotFound = { message: "No encontramos a esa persona en la familia." };
+const memberNotFound = { message: "No encontramos a esa persona en el grupo." };
 
 // Avisa a la familia y a cada persona afectada (su menú de familias cambió).
 async function broadcastMembership(familyId: string, userIds: string[]) {
@@ -30,7 +30,7 @@ async function broadcastMembership(familyId: string, userIds: string[]) {
 
 familiesRouter.post("/", async (request, response) => {
   const name = cleanText(request.body.name, 50);
-  if (!name) return response.status(400).json({ message: "Escribe un nombre para tu familia." });
+  if (!name) return response.status(400).json({ message: "Escribe un nombre para el grupo." });
   const user = currentUser(response);
   const familyId = await createFamily(user.id, name);
   await notifyUserChanged(user.id);
@@ -49,7 +49,7 @@ familiesRouter.get<FamilyParams>("/:id", requireMember(), async (request, respon
 
 familiesRouter.patch<FamilyParams>("/:id", requireMember("admin"), async (request, response) => {
   const name = cleanText(request.body.name, 50);
-  if (!name) return response.status(400).json({ message: "Escribe un nombre para tu familia." });
+  if (!name) return response.status(400).json({ message: "Escribe un nombre para el grupo." });
   const familyId = request.params.id.toUpperCase();
   await renameFamily(familyId, name);
   await broadcastMembership(familyId, (await listMembers(familyId)).map(({ userId }) => userId));
@@ -71,7 +71,7 @@ familiesRouter.patch<MemberParams>("/:id/members/:userId", requireMember("owner"
   if (!role) return response.status(400).json({ message: "Elige un rol válido." });
   const targetRole = await getMembership(familyId, request.params.userId);
   if (!targetRole) return response.status(404).json(memberNotFound);
-  if (targetRole === "owner") return response.status(409).json({ message: "Para cambiar al dueño, transfiere la familia." });
+  if (targetRole === "owner") return response.status(409).json({ message: "Para cambiar al dueño, transfiere el grupo." });
   await setMemberRole(familyId, request.params.userId, role);
   await broadcastMembership(familyId, [request.params.userId]);
   return response.json({ userId: request.params.userId, role });
@@ -87,7 +87,7 @@ familiesRouter.delete<MemberParams>("/:id/members/:userId", requireMember(), asy
   const myRole = currentRole(response);
   if (targetId === me.id) {
     if (myRole === "owner") {
-      return response.status(409).json({ message: "Transfiere la familia a otra persona antes de salir, o elimínala." });
+      return response.status(409).json({ message: "Transfiere el grupo a otra persona antes de salir, o elimínalo." });
     }
   } else {
     const canRemove = myRole === "owner" || (myRole === "admin" && targetRole === "member");
@@ -102,7 +102,7 @@ familiesRouter.post<FamilyParams>("/:id/transfer", requireMember("owner"), async
   const familyId = request.params.id.toUpperCase();
   const me = currentUser(response);
   const targetId = cleanText(request.body.userId, 50);
-  if (!targetId || targetId === me.id) return response.status(400).json({ message: "Elige a otra persona de la familia." });
+  if (!targetId || targetId === me.id) return response.status(400).json({ message: "Elige a otra persona del grupo." });
   if (!(await getMembership(familyId, targetId))) return response.status(404).json(memberNotFound);
   await transferOwnership(familyId, me.id, targetId);
   await broadcastMembership(familyId, [me.id, targetId]);

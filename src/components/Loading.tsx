@@ -1,12 +1,12 @@
-import { House } from "lucide-react";
+import { BrandIcon } from "../lib/brand";
 
 export function Loading() {
   return (
     <main className="loading-screen">
       <div className="brand-mark">
-        <House size={27} strokeWidth={2.25} />
+        <BrandIcon size={27} />
       </div>
-      <span>Cargando tu casa</span>
+      <span>Cargando…</span>
     </main>
   );
 }

@@ -30,8 +30,8 @@ export function PersonalHome() {
               <Plus size={18} /> Nueva lista
             </button>
             {families.length === 0 && (
-              <Link className="secondary-button" to="/familias/nueva">
-                <Users size={18} /> Crear una familia
+              <Link className="secondary-button" to="/grupos/nuevo">
+                <Users size={18} /> Crear un grupo
               </Link>
             )}
           </div>

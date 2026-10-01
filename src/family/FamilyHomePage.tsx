@@ -17,8 +17,8 @@ export function FamilyHomePage() {
       <section className="content">
         <div className="empty-state animate-in">
           <div><CircleAlert size={28} /></div>
-          <h3>No encontramos esta familia</h3>
-          <p>Puede que la hayan eliminado o que ya no seas parte de ella.</p>
+          <h3>No encontramos este grupo</h3>
+          <p>Puede que lo hayan eliminado o que ya no seas parte de él.</p>
           <Link className="secondary-button empty-state-action" to="/">Volver al inicio</Link>
         </div>
       </section>
@@ -45,7 +45,7 @@ export function FamilyHomePage() {
             </small>
           </Link>
         ))}
-        <Link className="list-card" to={`/familias/${family.id}/calendario`}>
+        <Link className="list-card" to={`/grupos/${family.id}/calendario`}>
           <span className="list-icon list-color-neutral" aria-hidden="true"><CalendarDays size={20} /></span>
           <strong>Calendario</strong>
           <small>Eventos y recordatorios</small>
@@ -55,8 +55,8 @@ export function FamilyHomePage() {
           <strong>Nueva lista</strong>
         </button>
       </div>
-      <Link className="text-button family-settings-link" to={`/familias/${family.id}/ajustes`}>
-        <Settings2 size={15} /> Ajustes de la familia
+      <Link className="text-button family-settings-link" to={`/grupos/${family.id}/ajustes`}>
+        <Settings2 size={15} /> Ajustes del grupo
       </Link>
       {creating && <NewListModal familyId={family.id} onClose={() => setCreating(false)} />}
     </section>

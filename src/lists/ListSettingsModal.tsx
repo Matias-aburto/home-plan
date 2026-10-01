@@ -132,7 +132,7 @@ export function ListSettingsModal({
         {list.access !== "viewer" && list.kind !== "checklist" && (
           <>
             <h3 className="list-settings-heading">Ubicaciones</h3>
-            <p>{list.familyId ? "Se comparten entre las listas de la familia." : "Se comparten entre tus listas."} Si eliminas una, sus ítems quedan como generales.</p>
+            <p>{list.familyId ? "Se comparten entre las listas del grupo." : "Se comparten entre tus listas."} Si eliminas una, sus ítems quedan como generales.</p>
             <div className="locations-list">
               {detail.locations.map((location) => (
                 <div className="location-edit-row" key={location.id}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Download, X } from "lucide-react";
+import { appName } from "../lib/brand";
 
 const visitsKey = "casa:visits";
 const visitCountedKey = "casa:visit-counted";
@@ -37,9 +38,9 @@ export function InstallPrompt({ canInstall, onInstall }: { canInstall: boolean; 
   }
 
   return (
-    <div className="install-prompt" role="dialog" aria-label="Instalar Casa">
+    <div className="install-prompt" role="dialog" aria-label={`Instalar ${appName}`}>
       <span className="install-prompt-icon"><Download size={18} /></span>
-      <p><strong>Instala Casa en tu dispositivo</strong>Se abre como una app, más rápido y también sin conexión.</p>
+      <p><strong>Instala {appName} en tu dispositivo</strong>Se abre como una app, más rápido y también sin conexión.</p>
       <div className="install-prompt-actions">
         <button className="text-button" onClick={dismiss}>Ahora no</button>
         <button className="primary-button" onClick={() => {

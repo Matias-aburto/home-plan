@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { CircleAlert, House, MailOpen } from "lucide-react";
+import { CircleAlert, MailOpen } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { ApiError, api } from "../api/client";
 import { AccountMenu } from "../components/AccountMenu";
+import { appName, BrandIcon } from "../lib/brand";
 import { useMe } from "../data/MeProvider";
 import type { Invitation, User } from "../types";
 import { invitationSummary } from "./InvitationCard";
@@ -41,7 +42,7 @@ export function InvitationLanding({ user, onLogout }: { user: User; onLogout: (e
       await api(`/api/invitations/token/${encodeURIComponent(token)}/${action}`, { method: "POST" });
       await me.refresh();
       if (action === "decline") navigate("/", { replace: true });
-      else navigate(invitation.familyId ? `/familias/${invitation.familyId}` : `/listas/${invitation.listId}`, { replace: true });
+      else navigate(invitation.familyId ? `/grupos/${invitation.familyId}` : `/listas/${invitation.listId}`, { replace: true });
     } catch (requestError) {
       setError((requestError as Error).message);
     } finally {
@@ -55,8 +56,8 @@ export function InvitationLanding({ user, onLogout }: { user: User; onLogout: (e
     <main className="onboarding">
       <section className="onboarding-card">
         <header className="brand">
-          <div className="brand-mark"><House size={27} strokeWidth={2.25} /></div>
-          <span>Casa</span>
+          <div className="brand-mark"><BrandIcon size={27} /></div>
+          <span>{appName}</span>
           <div className="brand-account"><AccountMenu user={user} onLogout={onLogout} /></div>
         </header>
         <div className="form-content animate-in">

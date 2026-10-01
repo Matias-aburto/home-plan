@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Copy, RotateCw, Send, Share2, X } from "lucide-react";
 import { api } from "../api/client";
+import { appName } from "../lib/brand";
 import { offeredRoleLabels } from "./InvitationCard";
 import type { Invitation } from "../types";
 
@@ -83,7 +84,7 @@ export function InviteManager({ endpoint, targetName, roleOptions, roleField = "
   }
 
   async function shareLink(link: string) {
-    const text = `Te invito a ${targetName} en Casa.`;
+    const text = `Te invito a ${targetName} en ${appName}.`;
     if (navigator.share) {
       await navigator.share({ title: targetName, text, url: link }).catch(() => undefined);
       return;
@@ -115,7 +116,7 @@ export function InviteManager({ endpoint, targetName, roleOptions, roleField = "
       {created && (
         <div className="invite-link-box">
           <p>
-            Listo. {created.invitation.invitedEmail} verá la invitación al entrar a Casa.
+            Listo. {created.invitation.invitedEmail} verá la invitación al entrar a {appName}.
             También puedes enviarle este enlace (sirve una vez y vence en 7 días):
           </p>
           <div className="invite-link-row">

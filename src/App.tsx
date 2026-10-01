@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Navigate, Route, Routes, useLocation } from "react-router";
 import { useSession } from "./auth/AuthProvider";
 import { LoginPage } from "./auth/LoginPage";
 import { IosInstallGuide } from "./components/IosInstallGuide";
@@ -59,7 +59,7 @@ function SignedInApp({
   return (
     <ConnectionProvider user={user} familyIds={families.map(({ id }) => id)}>
       <Routes>
-        <Route path="familias/nueva" element={<NewFamilyPage user={user} {...install} onLogout={onLogout} />} />
+        <Route path="grupos/nuevo" element={<NewFamilyPage user={user} {...install} onLogout={onLogout} />} />
         <Route path="invitacion/:token" element={<InvitationLanding user={user} onLogout={onLogout} />} />
         <Route element={<AppShell user={user} {...install} onLogout={onLogout} />}>
           <Route index element={<HomeRedirect />} />
@@ -67,12 +67,20 @@ function SignedInApp({
           <Route path="compartidas" element={<SharedHome />} />
           <Route path="invitaciones" element={<InvitationsPage />} />
           <Route path="listas/:listId" element={<ListRoute />} />
-          <Route path="familias/:familyId" element={<FamilyHomePage />} />
-          <Route path="familias/:familyId/calendario" element={<FamilyCalendarRoute />} />
-          <Route path="familias/:familyId/ajustes" element={<FamilySettingsRoute />} />
+          <Route path="grupos/:familyId" element={<FamilyHomePage />} />
+          <Route path="grupos/:familyId/calendario" element={<FamilyCalendarRoute />} />
+          <Route path="grupos/:familyId/ajustes" element={<FamilySettingsRoute />} />
+          <Route path="familias/*" element={<FamiliesRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </ConnectionProvider>
   );
+}
+
+// Los enlaces de antes del cambio a grupos (/familias/...) siguen funcionando.
+function FamiliesRedirect() {
+  const { pathname, search } = useLocation();
+  const target = pathname.replace(/^\/familias\/nueva/, "/grupos/nuevo").replace(/^\/familias/, "/grupos");
+  return <Navigate to={{ pathname: target, search }} replace />;
 }

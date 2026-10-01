@@ -85,7 +85,7 @@ listsRouter.post("/", async (request, response) => {
   if (!kind) return response.status(400).json({ message: "Elige un tipo de lista." });
   const familyId = cleanText(body.familyId, 20).toUpperCase() || null;
   if (familyId && !(await getMembership(familyId, user.id))) {
-    return response.status(404).json({ message: "No encontramos esa familia." });
+    return response.status(404).json({ message: "No encontramos ese grupo." });
   }
   const requestedId = cleanText(body.id, 50) || undefined;
   if (requestedId) {
@@ -156,7 +156,7 @@ listsRouter.post<ListParams>("/:listId/move", requireAccess("owner"), async (req
     return response.status(400).json({ message: "La lista ya está ahí." });
   }
   if (familyId && !(await getMembership(familyId, user.id))) {
-    return response.status(404).json({ message: "No encontramos esa familia." });
+    return response.status(404).json({ message: "No encontramos ese grupo." });
   }
   await moveList(list.id, familyId ? { familyId } : { ownerUserId: user.id });
   const moved = (await getListRecord(list.id))!;

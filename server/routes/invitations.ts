@@ -65,7 +65,7 @@ familyInvitationsRouter.post<FamilyParams>("/", async (request, response) => {
     return response.status(403).json({ message: "Solo el dueño puede invitar administradores." });
   }
   if (await isFamilyMemberByEmail(familyId, email)) {
-    return response.status(409).json({ message: "Esa persona ya es parte de la familia." });
+    return response.status(409).json({ message: "Esa persona ya es parte del grupo." });
   }
   if (await invitationsSentToday(user.id) >= maxInvitationsPerDay) {
     return response.status(429).json({ message: "Enviaste muchas invitaciones hoy. Inténtalo mañana." });

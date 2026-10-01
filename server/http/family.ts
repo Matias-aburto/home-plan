@@ -5,7 +5,7 @@ import { currentUser } from "./session.js";
 
 export type FamilyParams = { id: string };
 
-export const familyNotFound = { message: "No encontramos esa familia." };
+export const familyNotFound = { message: "No encontramos ese grupo." };
 
 export function currentRole(response: Response) {
   return response.locals.familyRole as FamilyRole;
@@ -18,7 +18,7 @@ export function requireMember(required: FamilyRole = "member") {
     const role = await getMembership(request.params.id, currentUser(response).id);
     if (!role) return response.status(404).json(familyNotFound);
     if (!roleAtLeast(role, required)) {
-      return response.status(403).json({ message: "No tienes permiso para hacer esto en la familia." });
+      return response.status(403).json({ message: "No tienes permiso para hacer esto en el grupo." });
     }
     response.locals.familyRole = role;
     next();

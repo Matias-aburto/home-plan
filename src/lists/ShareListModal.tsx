@@ -66,8 +66,8 @@ export function ShareListModal({ detail, onChanged, onClose }: {
         </header>
         <p>
           {list.familyId
-            ? "Toda la familia ya ve esta lista. Aquí puedes sumar a personas de fuera."
-            : "Comparte esta lista con quien quieras, sin que tenga que ser de tu familia."}
+            ? "Todo el grupo ya ve esta lista. Aquí puedes sumar a personas de fuera."
+            : "Comparte esta lista con quien quieras, sin que tenga que ser de tus grupos."}
         </p>
 
         {isOwner && (

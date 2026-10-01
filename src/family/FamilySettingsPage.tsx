@@ -38,8 +38,8 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
       <section className="content">
         <div className="empty-state animate-in">
           <div><CircleAlert size={28} /></div>
-          <h3>No encontramos esta familia</h3>
-          <p>Puede que la hayan eliminado o que ya no seas parte de ella.</p>
+          <h3>No encontramos este grupo</h3>
+          <p>Puede que lo hayan eliminado o que ya no seas parte de él.</p>
           <Link className="secondary-button empty-state-action" to="/">Volver al inicio</Link>
         </div>
       </section>
@@ -85,7 +85,7 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
   return (
     <section className="content family-settings">
       <div className="content-heading">
-        <div className="title-only"><h2>Ajustes de la familia</h2></div>
+        <div className="title-only"><h2>Ajustes del grupo</h2></div>
         <span>{roleLabels[myRole]}</span>
       </div>
 
@@ -95,7 +95,7 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
         <h3>Nombre</h3>
         {isAdmin ? (
           <form className="inline-form" onSubmit={saveName}>
-            <input value={name ?? family.name} onChange={(event) => setName(event.target.value)} maxLength={50} aria-label="Nombre de la familia" />
+            <input value={name ?? family.name} onChange={(event) => setName(event.target.value)} maxLength={50} aria-label="Nombre del grupo" />
             {name !== null && name.trim() !== family.name && (
               <button className="primary-button" disabled={busy || !name.trim()}>Guardar</button>
             )}
@@ -164,7 +164,7 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
 
       {isOwner && others.length > 0 && (
         <div className="settings-card">
-          <h3>Transferir la familia</h3>
+          <h3>Transferir el grupo</h3>
           <p className="settings-hint">La otra persona pasa a ser dueña y tú quedas como administrador.</p>
           <div className="inline-form">
             <select value={transferTo} onChange={(event) => setTransferTo(event.target.value)} aria-label="Nuevo dueño">
@@ -203,7 +203,7 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
               </div>
             </div>
           ) : (
-            <button onClick={() => setConfirming("leave")}><DoorOpen size={17} /> Salir de la familia</button>
+            <button onClick={() => setConfirming("leave")}><DoorOpen size={17} /> Salir del grupo</button>
           )
         )}
         {isOwner && (
@@ -222,11 +222,11 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
               </div>
             </div>
           ) : (
-            <button className="danger" onClick={() => setConfirming("delete")}><Trash2 size={17} /> Eliminar la familia</button>
+            <button className="danger" onClick={() => setConfirming("delete")}><Trash2 size={17} /> Eliminar el grupo</button>
           )
         )}
         {isOwner && others.length > 0 && (
-          <p className="settings-hint">Para salir, primero transfiere la familia a otra persona.</p>
+          <p className="settings-hint">Para salir, primero transfiere el grupo a otra persona.</p>
         )}
       </div>
     </section>

@@ -1,4 +1,5 @@
-import { Download, House, Plus, Share2, X } from "lucide-react";
+import { Download, Plus, Share2, X } from "lucide-react";
+import { appName, BrandIcon } from "../lib/brand";
 
 export function IosInstallGuide({ onClose }: { onClose: () => void }) {
   return (
@@ -8,7 +9,7 @@ export function IosInstallGuide({ onClose }: { onClose: () => void }) {
           <div className="install-guide-icon"><Download size={23} /></div>
           <button onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
         </header>
-        <h2>Instala Casa</h2>
+        <h2>Instala {appName}</h2>
         <p>En Safari, agrégala a tu inicio para abrirla como una app.</p>
         <ol>
           <li>
@@ -20,8 +21,8 @@ export function IosInstallGuide({ onClose }: { onClose: () => void }) {
             <div><strong>Agregar a pantalla de inicio</strong><small>Desliza el menú si no aparece.</small></div>
           </li>
           <li>
-            <span><House size={18} /></span>
-            <div><strong>Confirma con “Agregar”</strong><small>Casa aparecerá junto a tus apps.</small></div>
+            <span><BrandIcon size={18} /></span>
+            <div><strong>Confirma con “Agregar”</strong><small>{appName} aparecerá junto a tus apps.</small></div>
           </li>
         </ol>
         <button className="primary-button" onClick={onClose}>Entendido</button>

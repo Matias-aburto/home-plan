@@ -91,9 +91,9 @@ export function NavContent({ onNavigate, onNewList }: { onNavigate?: () => void;
         <SpaceSection key={space.key} space={space} activeKey={activeKey} onNavigate={onNavigate} onNewList={onNewList} />
       ))}
       <div className="nav-section">
-        <Link className="nav-item nav-family-link" to="/familias/nueva" onClick={onNavigate}>
+        <Link className="nav-item nav-family-link" to="/grupos/nuevo" onClick={onNavigate}>
           <span className="nav-icon"><Users size={17} /></span>
-          <span>{families.length > 0 ? "Crear otra familia" : "Crear una familia"}</span>
+          <span>{families.length > 0 ? "Crear otro grupo" : "Crear un grupo"}</span>
         </Link>
       </div>
     </>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Bell, House, Menu, Plus, X } from "lucide-react";
+import { Bell, Menu, Plus, X } from "lucide-react";
+import { appName, BrandIcon } from "../lib/brand";
 import { Link, Outlet, useLocation } from "react-router";
 import { AccountMenu, UserAvatar } from "../components/AccountMenu";
 import { useConnection } from "../data/ConnectionProvider";
@@ -37,7 +38,7 @@ export function AppShell({
 
   // Al volver a abrir la app se retoma la última lista o sección.
   useEffect(() => {
-    if (pathname.startsWith("/listas/") || pathname.startsWith("/familias/")) localStorage.setItem(lastPathKey, pathname);
+    if (pathname.startsWith("/listas/") || pathname.startsWith("/grupos/")) localStorage.setItem(lastPathKey, pathname);
   }, [pathname]);
 
   // En móvil la barra inferior muestra las primeras entradas del espacio actual y el menú completo.
@@ -49,9 +50,9 @@ export function AppShell({
     <main className="app-shell">
       <header className="app-header">
         <Link className="family-identity" to={activeSpace.to}>
-          <div className="small-brand-mark"><House size={21} /></div>
+          <div className="small-brand-mark"><BrandIcon /></div>
           <div>
-            <span>Casa</span>
+            <span>{appName}</span>
             <h1>{activeSpace.title}</h1>
           </div>
         </Link>
@@ -60,7 +61,7 @@ export function AppShell({
           {activeSpace.familyId && members.length > 0 && (
             <Link
               className="member-avatars"
-              to={`/familias/${activeSpace.familyId}/ajustes`}
+              to={`/grupos/${activeSpace.familyId}/ajustes`}
               aria-label={`Miembros: ${members.map(({ name }) => name).join(", ")}`}
             >
               {members.slice(0, 3).map((member) => (

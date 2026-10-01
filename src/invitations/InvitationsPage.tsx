@@ -17,7 +17,7 @@ export function InvitationsPage() {
     setError("");
     try {
       await respondInvitation(invitation.id, action);
-      if (action === "accept" && invitation.familyId) navigate(`/familias/${invitation.familyId}`);
+      if (action === "accept" && invitation.familyId) navigate(`/grupos/${invitation.familyId}`);
       if (action === "accept" && invitation.listId) navigate(`/listas/${invitation.listId}`);
     } catch (requestError) {
       setError(navigator.onLine ? (requestError as Error).message : "Necesitas conexión para responder.");
@@ -37,7 +37,7 @@ export function InvitationsPage() {
         <div className="empty-state animate-in">
           <div><Inbox size={28} /></div>
           <h3>No tienes invitaciones</h3>
-          <p>Cuando alguien te invite a una familia o a una lista, aparecerá aquí.</p>
+          <p>Cuando alguien te invite a un grupo o a una lista, aparecerá aquí.</p>
         </div>
       ) : (
         <div className="invitation-list">

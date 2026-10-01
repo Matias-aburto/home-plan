@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
-import { ArrowLeft, Download, House, Users } from "lucide-react";
+import { ArrowLeft, Download, Users } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AccountMenu } from "../components/AccountMenu";
+import { appName, BrandIcon } from "../lib/brand";
 import { useMe } from "../data/MeProvider";
 import type { User } from "../types";
 
-// Crear una familia nueva. Para entrar a una existente se necesita una invitación.
+// Crear un grupo nuevo. Para entrar a uno existente se necesita una invitación.
 export function NewFamilyPage({
   user,
   canInstall,
@@ -29,7 +30,7 @@ export function NewFamilyPage({
     setError("");
     try {
       const family = await me.createFamily(name.trim());
-      navigate(`/familias/${family.id}`, { replace: true });
+      navigate(`/grupos/${family.id}`, { replace: true });
     } catch (requestError) {
       setError(navigator.onLine ? (requestError as Error).message : "Necesitas conexión para esto.");
     } finally {
@@ -42,9 +43,9 @@ export function NewFamilyPage({
       <section className="onboarding-card">
         <header className="brand">
           <div className="brand-mark">
-            <House size={27} strokeWidth={2.25} />
+            <BrandIcon size={27} />
           </div>
-          <span>Casa</span>
+          <span>{appName}</span>
           <div className="brand-account">
             <AccountMenu user={user} onLogout={onLogout} />
           </div>
@@ -55,25 +56,26 @@ export function NewFamilyPage({
             <ArrowLeft size={20} />
           </button>
           <div className="form-icon"><Users /></div>
-          <h1>Crea tu familia</h1>
+          <h1>Crea un grupo</h1>
           <p>
-            Empieza con una lista de compras y otra de tareas, más un calendario compartido.
-            Después podrás invitar a los demás. Para entrar a una familia existente, pide que te inviten.
+            Para tu familia, tus amigos, un depto compartido o un viaje. Empieza con una lista de compras,
+            otra de tareas y un calendario. Después podrás invitar a los demás; para entrar a un grupo
+            existente, pide que te inviten.
           </p>
           <form onSubmit={submit}>
-            <label htmlFor="family-input">Nombre de la familia</label>
+            <label htmlFor="family-input">Nombre del grupo</label>
             <input
               id="family-input"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Ej. Familia González"
+              placeholder="Ej. Viaje a Pucón"
               maxLength={50}
               autoFocus
               autoComplete="off"
             />
             {error && <div className="form-error">{error}</div>}
             <button className="primary-button" disabled={submitting || !name.trim()}>
-              {submitting ? "Un momento…" : "Crear familia"}
+              {submitting ? "Un momento…" : "Crear grupo"}
             </button>
           </form>
         </div>
@@ -81,7 +83,7 @@ export function NewFamilyPage({
           <span>Conectado como {user.email}</span>
           {canInstall && (
             <button className="install-link" onClick={onInstall}>
-              <Download size={15} /> Instalar Casa
+              <Download size={15} /> Instalar {appName}
             </button>
           )}
         </footer>

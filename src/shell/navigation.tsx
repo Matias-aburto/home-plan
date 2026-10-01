@@ -72,20 +72,20 @@ export function useNavigation() {
       key: family.id,
       familyId: family.id,
       title: family.name,
-      to: `/familias/${family.id}`,
+      to: `/grupos/${family.id}`,
       lists: listsIn(family.id),
       archived: archivedIn(family.id),
       canCreate: true,
       links: [
         {
           key: `calendar:${family.id}`,
-          to: `/familias/${family.id}/calendario`,
+          to: `/grupos/${family.id}/calendario`,
           label: "Calendario",
           icon: <span className="nav-icon"><CalendarDays size={17} /></span>
         },
         {
           key: `settings:${family.id}`,
-          to: `/familias/${family.id}/ajustes`,
+          to: `/grupos/${family.id}/ajustes`,
           label: "Ajustes",
           icon: <span className="nav-icon"><Settings2 size={17} /></span>
         }
@@ -109,7 +109,7 @@ export function useNavigation() {
     activeKey = segments[2];
     const list = lists.find(({ id }) => id === segments[2]);
     if (list) activeSpaceKey = spaceOf(list);
-  } else if (segments[1] === "familias" && segments[2]) {
+  } else if (segments[1] === "grupos" && segments[2]) {
     activeSpaceKey = segments[2];
     activeKey = segments[3] === "calendario" ? `calendar:${segments[2]}`
       : segments[3] === "ajustes" ? `settings:${segments[2]}` : null;

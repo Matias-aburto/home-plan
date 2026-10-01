@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Download, House } from "lucide-react";
+import { Download } from "lucide-react";
 import { useLocation } from "react-router";
+import { appName, BrandIcon } from "../lib/brand";
 import { api } from "../api/client";
 import type { User } from "../types";
 
@@ -62,7 +63,7 @@ export function LoginPage({
     api<AuthConfig>("/api/auth/config")
       .then(setConfig)
       .catch(() => setError(navigator.onLine
-        ? "No pudimos conectar con Casa. Inténtalo nuevamente."
+        ? `No pudimos conectar con ${appName}. Inténtalo nuevamente.`
         : "Necesitas conexión para iniciar sesión."));
   }, []);
 
@@ -124,18 +125,18 @@ export function LoginPage({
       <section className="onboarding-card">
         <header className="brand">
           <div className="brand-mark">
-            <House size={27} strokeWidth={2.25} />
+            <BrandIcon size={27} />
           </div>
-          <span>Casa</span>
+          <span>{appName}</span>
         </header>
 
         <div className="welcome-content animate-in">
-          <div className="eyebrow">Tu hogar, más simple</div>
-          <h1>Todo en casa,<br />en un solo lugar.</h1>
+          <div className="eyebrow">Solo o en grupo</div>
+          <h1>Tus listas,<br />siempre a mano.</h1>
           <p>
             {invited
-              ? "Te invitaron a Casa. Inicia sesión para ver la invitación."
-              : "Tus listas y las de tu familia, sincronizadas en todos tus dispositivos."}
+              ? `Te invitaron a ${appName}. Inicia sesión para ver la invitación.`
+              : "Compras, tareas y checklists propias o compartidas con tu familia, amigos o cualquier grupo."}
           </p>
           <div className="login-actions">
             {config?.googleClientId && <div className="google-button" ref={buttonRef} aria-busy={submitting} />}
@@ -163,7 +164,7 @@ export function LoginPage({
           <span>Solo usamos tu nombre y tu email</span>
           {canInstall && (
             <button className="install-link" onClick={onInstall}>
-              <Download size={15} /> Instalar Casa
+              <Download size={15} /> Instalar {appName}
             </button>
           )}
         </footer>

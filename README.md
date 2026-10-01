@@ -1,14 +1,16 @@
-# Casa
+# Listas (nombre provisorio)
 
-PWA para organizar el hogar: listas personales y compartidas, familias con listas y calendario en común, sincronizadas en tiempo real y usables sin conexión.
+PWA de listas personales y compartidas: compras, tareas y checklists, solo o en grupos (familia, amigos, un depto compartido, un viaje), con calendario por grupo, sincronizadas en tiempo real y usables sin conexión.
+
+El nombre de la app está en `src/lib/brand.tsx` (y en `index.html` / `vite.config.ts` para la PWA).
 
 ## Qué hace
 
 - **Cuentas con Google.** Cada persona entra con su cuenta; la sesión se guarda en una cookie httpOnly.
 - **Listas propias** de tres tipos: compras (con ubicaciones y sugerencias de productos), tareas y checklist. Se crean, renombran, archivan, reordenan y eliminan.
-- **Familias.** Una persona puede estar en varias. Cada familia tiene sus listas, su calendario y roles (dueño, administrador, miembro). Las tareas de familia se asignan a sus miembros.
+- **Grupos.** Una persona puede estar en varios. Cada grupo tiene sus listas, su calendario y roles (dueño, administrador, miembro). Las tareas de un grupo se asignan a sus miembros. Internamente el código y la base siguen llamándolos `family`.
 - **Invitaciones** por email o enlace (un solo uso, vencen en 7 días), con bandeja para aceptar o rechazar.
-- **Compartir una lista** con personas puntuales, con permiso de edición o solo lectura. Las listas se pueden mover entre lo personal y una familia.
+- **Compartir una lista** con personas puntuales, con permiso de edición o solo lectura. Las listas se pueden mover entre lo personal y un grupo.
 - **Sin conexión.** Los cambios se guardan en el dispositivo (IndexedDB) y se envían en orden al recuperar la red.
 
 El diseño completo y las decisiones están en [docs/PLAN.md](docs/PLAN.md).

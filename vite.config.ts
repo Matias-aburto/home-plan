@@ -8,9 +8,9 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Casa",
-        short_name: "Casa",
-        description: "Todo lo de tu hogar, en un solo lugar.",
+        name: "Listas",
+        short_name: "Listas",
+        description: "Listas propias y compartidas con tus grupos.",
         theme_color: "#f8f7f3",
         background_color: "#f8f7f3",
         display: "standalone",
