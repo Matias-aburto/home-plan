@@ -90,14 +90,16 @@ export function NavContent({ onNavigate, onCreate }: { onNavigate?: () => void; 
   const { spaces, activeKey, families, calendar } = useNavigation();
   return (
     <>
-      <div className="nav-section nav-agenda">
-        <EntryLink entry={calendar} active={activeKey === "calendar"} onNavigate={onNavigate} />
+      <div className="nav-scroll">
+        <div className="nav-section nav-agenda">
+          <EntryLink entry={calendar} active={activeKey === "calendar"} onNavigate={onNavigate} />
+        </div>
+        {spaces.map((space) => (
+          <SpaceSection key={space.key} space={space} activeKey={activeKey} onNavigate={onNavigate} onCreate={onCreate} />
+        ))}
       </div>
-      {spaces.map((space) => (
-        <SpaceSection key={space.key} space={space} activeKey={activeKey} onNavigate={onNavigate} onCreate={onCreate} />
-      ))}
-      {/* Separado al final: crear un grupo no es parte del último espacio. */}
-      <div className="nav-section sidebar-bottom nav-create-group">
+      {/* Al pie del menú: crear un grupo no es parte del último espacio. */}
+      <div className="nav-section sidebar-bottom">
         <Link className="nav-item nav-family-link" to="/grupos/nuevo" onClick={onNavigate}>
           <span className="nav-icon"><Users size={17} /></span>
           <span>{families.length > 0 ? "Crear otro grupo" : "Crear un grupo"}</span>

@@ -2550,4 +2550,17 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 .agenda-legend .legend-colors { width: 30px; padding: 0; justify-content: center; color: var(--muted); }
 .space-color-row { min-width: 0; margin: 0 0 14px; padding: 0; border: 0; }
 .space-color-row legend { margin-bottom: 8px; color: #435149; font-size: 13px; font-weight: 700; }
-.nav-create-group { padding-top: 14px; border-top: 1px solid var(--line); }
+/* En escritorio el menú ocupa el alto de la ventana (con su propio scroll), así "Crear otro grupo"
+   queda siempre al pie del menú. El contenido hace scroll por su lado. */
+@media (min-width: 721px) {
+  .app-shell { height: 100vh; display: flex; flex-direction: column; }
+  .app-shell > .dashboard { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+  .dashboard > .sidebar { min-height: 0; overflow: hidden; }
+  .sidebar > .nav-scroll { flex: 1; min-height: 0; margin: 0 -8px; padding: 0 8px; overflow-y: auto; }
+  .sidebar > .nav-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  .sidebar > .nav-scroll:hover { scrollbar-color: #cfd3cc transparent; }
+  .dashboard-main { min-height: 0; overflow-y: auto; }
+}
+.dashboard-main { min-width: 0; }
+.nav-scroll { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; }
+.nav-scroll > .nav-section + .nav-section { margin-top: 18px; }

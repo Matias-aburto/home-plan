@@ -97,7 +97,9 @@ export function AppShell({
         <aside className="sidebar">
           <NavContent onCreate={setCreateIn} />
         </aside>
-        <Outlet />
+        <div className="dashboard-main">
+          <Outlet />
+        </div>
       </div>
 
       <nav className="mobile-nav" aria-label="Navegación">
