@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Plus, Users } from "lucide-react";
+import { ChevronDown, Plus, Settings2, Users } from "lucide-react";
 import { Link } from "react-router";
 import { SortableList } from "../components/SortableList";
 import { useMe } from "../data/MeProvider";
@@ -39,11 +39,24 @@ function SpaceSection({
     <div className="nav-section">
       <div className="nav-section-title">
         <Link to={space.to} onClick={onNavigate}>{space.title}</Link>
-        {space.canCreate && (
-          <button className="nav-section-action" onClick={() => onCreate(space.familyId)} aria-label={`Nueva lista en ${space.title}`}>
-            <Plus size={16} />
-          </button>
-        )}
+        <span className="nav-section-actions">
+          {space.settingsTo && (
+            <Link
+              className={`nav-section-action ${activeKey === `settings:${space.key}` ? "active" : ""}`}
+              to={space.settingsTo}
+              onClick={onNavigate}
+              aria-label={`Ajustes de ${space.title}`}
+              title="Ajustes del grupo"
+            >
+              <Settings2 size={15} />
+            </Link>
+          )}
+          {space.canCreate && (
+            <button className="nav-section-action" onClick={() => onCreate(space.familyId)} aria-label={`Nueva lista en ${space.title}`} title="Nueva lista">
+              <Plus size={16} />
+            </button>
+          )}
+        </span>
       </div>
       {empty && space.canCreate ? (
         <button className="nav-item nav-new-list" onClick={() => onCreate(space.familyId)}>
@@ -62,9 +75,6 @@ function SpaceSection({
           )}
         />
       )}
-      {space.links.map((entry) => (
-        <EntryLink key={entry.key} entry={entry} active={activeKey === entry.key} onNavigate={onNavigate} />
-      ))}
       {space.archived.length > 0 && (
         <>
           <button className={`nav-archived-toggle ${showArchived ? "open" : ""}`} onClick={() => setShowArchived(!showArchived)}>
@@ -87,7 +97,7 @@ function SpaceSection({
 
 // Menú completo con cada espacio. Se usa en la barra lateral y en el cajón móvil.
 export function NavContent({ onNavigate, onCreate }: { onNavigate?: () => void; onCreate: (familyId: string | null) => void }) {
-  const { spaces, activeKey, families, calendar } = useNavigation();
+  const { spaces, activeKey, calendar } = useNavigation();
   return (
     <>
       <div className="nav-scroll">
@@ -102,7 +112,7 @@ export function NavContent({ onNavigate, onCreate }: { onNavigate?: () => void; 
       <div className="nav-section sidebar-bottom">
         <Link className="nav-item nav-family-link" to="/grupos/nuevo" onClick={onNavigate}>
           <span className="nav-icon"><Users size={17} /></span>
-          <span>{families.length > 0 ? "Crear otro grupo" : "Crear un grupo"}</span>
+          <span>Crear grupo</span>
         </Link>
       </div>
     </>

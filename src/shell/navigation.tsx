@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarDays, Settings2 } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { useLocation } from "react-router";
 import { useSession } from "../auth/AuthProvider";
 import { useMe } from "../data/MeProvider";
@@ -25,8 +25,8 @@ export type NavSpace = {
   archived: NavEntry[];
   // Se pueden crear listas en el espacio (no en "Compartidas conmigo").
   canCreate: boolean;
-  // Accesos que no son contenido (ajustes del grupo); no se reordenan.
-  links: NavEntry[];
+  // Ajustes del grupo (un ícono junto al título); null en lo personal y lo compartido.
+  settingsTo: string | null;
 };
 
 function listEntry(list: ListSummary): NavEntry {
@@ -68,7 +68,7 @@ export function useNavigation() {
       lists: listsIn("personal"),
       archived: archivedIn("personal"),
       canCreate: true,
-      links: []
+      settingsTo: null
     },
     ...families.map((family) => ({
       key: family.id,
@@ -78,14 +78,7 @@ export function useNavigation() {
       lists: listsIn(family.id),
       archived: archivedIn(family.id),
       canCreate: true,
-      links: [
-        {
-          key: `settings:${family.id}`,
-          to: `/grupos/${family.id}/ajustes`,
-          label: "Ajustes",
-          icon: <span className="nav-icon"><Settings2 size={17} /></span>
-        }
-      ]
+      settingsTo: `/grupos/${family.id}/ajustes`
     })),
     ...(sharedLists.length || sharedArchived.length ? [{
       key: "shared",
@@ -95,7 +88,7 @@ export function useNavigation() {
       lists: sharedLists,
       archived: sharedArchived,
       canCreate: false,
-      links: []
+      settingsTo: null
     }] : [])
   ];
 

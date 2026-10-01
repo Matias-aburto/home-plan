@@ -1862,6 +1862,8 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 }
 
 .nav-section-action:hover { color: var(--green); background: #e4eee8; }
+.nav-section-action.active { color: var(--green); background: #e4eee8; }
+.nav-section-actions { display: flex; align-items: center; gap: 2px; }
 
 .sidebar .sortable-list,
 .nav-drawer .sortable-list { gap: 2px; }
@@ -2550,7 +2552,7 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 .agenda-legend .legend-colors { width: 30px; padding: 0; justify-content: center; color: var(--muted); }
 .space-color-row { min-width: 0; margin: 0 0 14px; padding: 0; border: 0; }
 .space-color-row legend { margin-bottom: 8px; color: #435149; font-size: 13px; font-weight: 700; }
-/* En escritorio el menú ocupa el alto de la ventana (con su propio scroll), así "Crear otro grupo"
+/* En escritorio el menú ocupa el alto de la ventana (con su propio scroll), así "Crear grupo"
    queda siempre al pie del menú. El contenido hace scroll por su lado. */
 @media (min-width: 721px) {
   .app-shell { height: 100vh; display: flex; flex-direction: column; }
