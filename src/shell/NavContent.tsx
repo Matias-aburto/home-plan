@@ -33,25 +33,22 @@ function SpaceSection({
 }) {
   const { reorderLists } = useMe();
   const [showArchived, setShowArchived] = useState(false);
-  const empty = space.lists.length === 0 && !space.calendar;
+  const empty = space.lists.length === 0;
 
   return (
     <div className="nav-section">
       <div className="nav-section-title">
         <Link to={space.to} onClick={onNavigate}>{space.title}</Link>
         {space.canCreate && (
-          <button className="nav-section-action" onClick={() => onCreate(space.familyId)} aria-label={`Crear en ${space.title}`}>
+          <button className="nav-section-action" onClick={() => onCreate(space.familyId)} aria-label={`Nueva lista en ${space.title}`}>
             <Plus size={16} />
           </button>
         )}
       </div>
-      {space.calendar && (
-        <EntryLink entry={space.calendar} active={activeKey === space.calendar.key} onNavigate={onNavigate} />
-      )}
       {empty && space.canCreate ? (
         <button className="nav-item nav-new-list" onClick={() => onCreate(space.familyId)}>
           <span className="nav-icon"><Plus size={17} /></span>
-          <span>Crear nuevo</span>
+          <span>Crear una lista</span>
         </button>
       ) : space.lists.length > 0 && (
         <SortableList
@@ -90,14 +87,12 @@ function SpaceSection({
 
 // Menú completo con cada espacio. Se usa en la barra lateral y en el cajón móvil.
 export function NavContent({ onNavigate, onCreate }: { onNavigate?: () => void; onCreate: (familyId: string | null) => void }) {
-  const { spaces, activeKey, families, agenda } = useNavigation();
+  const { spaces, activeKey, families, calendar } = useNavigation();
   return (
     <>
-      {agenda && (
-        <div className="nav-section nav-agenda">
-          <EntryLink entry={agenda} active={activeKey === "agenda"} onNavigate={onNavigate} />
-        </div>
-      )}
+      <div className="nav-section nav-agenda">
+        <EntryLink entry={calendar} active={activeKey === "calendar"} onNavigate={onNavigate} />
+      </div>
       {spaces.map((space) => (
         <SpaceSection key={space.key} space={space} activeKey={activeKey} onNavigate={onNavigate} onCreate={onCreate} />
       ))}

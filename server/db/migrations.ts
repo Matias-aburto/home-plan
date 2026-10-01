@@ -174,6 +174,13 @@ export async function migrate() {
       updated_at TEXT NOT NULL
     )`,
     "CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON calendar_events(calendar_id, event_date)",
+    // Color con que cada persona ve cada espacio ("personal" o id del grupo) en el calendario.
+    `CREATE TABLE IF NOT EXISTS user_space_colors (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      space TEXT NOT NULL,
+      color TEXT NOT NULL,
+      PRIMARY KEY (user_id, space)
+    )`,
     // Cambios de datos que se aplican una sola vez.
     `CREATE TABLE IF NOT EXISTS app_migrations (
       name TEXT PRIMARY KEY,
@@ -193,6 +200,8 @@ export async function migrate() {
     }
   ]);
   await runOnce("group-calendars", await groupCalendarStatements());
+  // Evento y recordatorio se unifican: sin notificaciones, eran lo mismo.
+  await runOnce("single-event-kind", [{ sql: "UPDATE calendar_events SET kind = 'event' WHERE kind <> 'event'", args: [] }]);
 }
 
 // Aplica los cambios en una transacción y los registra, para que no se repitan en cada deploy.

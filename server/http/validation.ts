@@ -1,4 +1,4 @@
-import type { CalendarEntryInput } from "../db/types.js";
+import type { CalendarEventInput } from "../db/types.js";
 
 export function cleanText(input: unknown, maxLength: number) {
   return typeof input === "string" ? input.trim().slice(0, maxLength) : "";
@@ -34,9 +34,9 @@ export function readSortMode(input: unknown) {
   return oneOf(["custom", "alpha"] as const, input);
 }
 
-export function readCalendarEntry(body: Record<string, unknown>): CalendarEntryInput | null {
+// Un solo tipo: evento. El tipo que mande el cliente (antes evento o recordatorio) se ignora.
+export function readCalendarEvent(body: Record<string, unknown>): CalendarEventInput | null {
   const title = cleanText(body.title, 100);
-  const kind = body.kind === "reminder" ? "reminder" : body.kind === "event" ? "event" : null;
   const date = cleanText(body.date, 10);
   const parsedDate = new Date(`${date}T00:00:00.000Z`);
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date)
@@ -46,6 +46,6 @@ export function readCalendarEntry(body: Record<string, unknown>): CalendarEntryI
   const time = rawTime && /^([01]\d|2[0-3]):[0-5]\d$/.test(rawTime) ? rawTime : null;
   const recurrence = body.recurrence === "yearly" ? "yearly" : "none";
   const notes = cleanText(body.notes, 300) || null;
-  if (!title || !kind || !validDate || (rawTime && !time)) return null;
-  return { title, kind, date, time, recurrence, notes };
+  if (!title || !validDate || (rawTime && !time)) return null;
+  return { title, date, time, recurrence, notes };
 }

@@ -30,7 +30,7 @@ export function AppShell({
   const { pathname } = useLocation();
   const { notice, dismissNotice } = useConnection();
   const { invitations, loaded } = useMe();
-  const { activeSpace, activeKey, agenda, onAgenda } = useNavigation();
+  const { activeSpace, activeKey, calendar, onCalendar } = useNavigation();
   const { detail: familyDetail } = useFamilyDetail(activeSpace.familyId);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // undefined: cerrado; null: crear en lo personal; string: crear en ese grupo.
@@ -38,16 +38,12 @@ export function AppShell({
 
   // Al volver a abrir la app se retoma la última lista o sección.
   useEffect(() => {
-    if (/^\/(listas\/|calendarios\/|grupos\/|agenda$)/.test(pathname)) localStorage.setItem(lastPathKey, pathname);
+    if (/^\/(listas\/|grupos\/|calendario$)/.test(pathname)) localStorage.setItem(lastPathKey, pathname);
   }, [pathname]);
 
   // En móvil la barra inferior muestra las primeras entradas del espacio actual y el menú completo.
-  // La agenda, si hay calendarios, siempre tiene su lugar.
-  const barEntries = [
-    ...(agenda ? [agenda] : []),
-    ...(activeSpace.calendar ? [activeSpace.calendar] : []),
-    ...activeSpace.lists
-  ].slice(0, 3);
+  // El calendario siempre tiene su lugar.
+  const barEntries = [calendar, ...activeSpace.lists].slice(0, 3);
   const members = familyDetail?.members ?? [];
   if (!loaded) return <Loading />;
 
@@ -58,12 +54,12 @@ export function AppShell({
           <div className="small-brand-mark"><BrandIcon /></div>
           <div>
             <span>{appName}</span>
-            <h1>{onAgenda ? "Agenda" : activeSpace.title}</h1>
+            <h1>{onCalendar ? "Calendario" : activeSpace.title}</h1>
           </div>
         </Link>
         <div className="header-actions">
           <SyncStatus />
-          {!onAgenda && activeSpace.familyId && members.length > 0 && (
+          {!onCalendar && activeSpace.familyId && members.length > 0 && (
             <Link
               className="member-avatars"
               to={`/grupos/${activeSpace.familyId}/ajustes`}
@@ -120,7 +116,7 @@ export function AppShell({
         {barEntries.length < 3 && activeSpace.canCreate && (
           <button className="nav-item" onClick={() => setCreateIn(activeSpace.familyId)}>
             <Plus size={20} />
-            <span>Nuevo</span>
+            <span>Nueva lista</span>
           </button>
         )}
         <button className="nav-item" onClick={() => setDrawerOpen(true)}>

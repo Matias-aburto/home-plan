@@ -1,16 +1,21 @@
 import type { QueuedOperation } from "./offline";
 
-export type CalendarEntry = {
+// Evento del calendario. Es de un espacio: personal (familyId null) o de un grupo.
+export type CalendarEvent = {
   id: string;
+  familyId: string | null;
   title: string;
-  kind: "event" | "reminder";
   date: string;
   time: string | null;
   recurrence: "none" | "yearly";
   notes: string | null;
+  createdBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
+
+// Lo que se edita de un evento.
+export type CalendarEventInput = Pick<CalendarEvent, "title" | "date" | "time" | "recurrence" | "notes">;
 
 export type User = {
   id: string;
@@ -112,36 +117,9 @@ export type Me = {
   user: User;
   families: FamilySummary[];
   lists: ListSummary[];
-  calendars: CalendarSummary[];
+  // Color con que el usuario ve cada espacio en el calendario ("personal" o id del grupo).
+  spaceColors: Record<string, string>;
   invitations: Invitation[];
-};
-
-// Calendario personal o de un grupo. No se comparte con personas puntuales.
-export type CalendarSummary = {
-  id: string;
-  ownerUserId: string | null;
-  familyId: string | null;
-  name: string;
-  icon: string;
-  color: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  archivedAt: string | null;
-  access: "owner" | "editor";
-};
-
-export type CalendarDetail = {
-  calendar: CalendarSummary;
-  events: CalendarEntry[];
-};
-
-// Evento con el calendario al que pertenece (en la agenda se mezclan varios).
-export type AgendaEntry = CalendarEntry & { calendarId: string };
-
-export type AgendaData = {
-  calendars: CalendarSummary[];
-  events: AgendaEntry[];
 };
 
 export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId" | "listId" | "calendarId">;

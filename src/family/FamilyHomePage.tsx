@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { CircleAlert, Settings2, UserPlus } from "lucide-react";
 import { Link, useParams } from "react-router";
+import { UpcomingEvents } from "../calendar/UpcomingEvents";
 import { CreateModal } from "../create/CreateModal";
 import { SpaceCards } from "../create/SpaceCards";
 import { useMe } from "../data/MeProvider";
 
-// Portada de un grupo: sus listas, su calendario y los ajustes.
+// Portada de un grupo: sus listas, sus próximos eventos y los ajustes.
 export function FamilyHomePage() {
   const { familyId = "" } = useParams();
-  const { families, lists, calendars, loaded } = useMe();
+  const { families, lists, loaded } = useMe();
   const [creating, setCreating] = useState(false);
   const family = families.find(({ id }) => id === familyId);
 
@@ -27,8 +28,7 @@ export function FamilyHomePage() {
   if (!family) return null;
 
   const familyLists = lists.filter((list) => list.familyId === family.id && !list.archivedAt);
-  const calendar = calendars.find((candidate) => candidate.familyId === family.id) ?? null;
-  const empty = familyLists.length === 0 && !calendar;
+  const empty = familyLists.length === 0;
   const canInvite = family.role === "owner" || family.role === "admin";
   return (
     <section className="content">
@@ -38,10 +38,11 @@ export function FamilyHomePage() {
       </div>
       {empty && (
         <p className="space-intro">
-          Todavía no hay nada en el grupo. Lo que crees aquí lo ven y editan todos sus miembros.
+          Todavía no hay listas en el grupo. Lo que crees aquí lo ven y editan todos sus miembros.
         </p>
       )}
-      <SpaceCards familyId={family.id} lists={familyLists} calendar={calendar} onCreate={() => setCreating(true)} />
+      <SpaceCards lists={familyLists} onCreate={() => setCreating(true)} />
+      <UpcomingEvents familyId={family.id} />
       <div className="space-links">
         {canInvite && family.memberCount === 1 && (
           <Link className="text-button family-settings-link" to={`/grupos/${family.id}/ajustes`}>

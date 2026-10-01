@@ -8,12 +8,11 @@ import { useMe } from "../data/MeProvider";
 
 // Vista general de lo personal; cuando todavía no hay nada, explica qué se puede hacer.
 export function PersonalHome() {
-  const { lists, calendars, families } = useMe();
+  const { lists, families } = useMe();
   const { user } = useSession();
   const [creating, setCreating] = useState(false);
   const activeLists = lists.filter((list) => list.ownerUserId === user?.id && !list.archivedAt);
-  const calendar = calendars.find((candidate) => candidate.ownerUserId === user?.id) ?? null;
-  const empty = activeLists.length === 0 && !calendar;
+  const empty = activeLists.length === 0;
 
   return (
     <section className="content">
@@ -22,11 +21,11 @@ export function PersonalHome() {
       </div>
       {empty && (
         <p className="space-intro">
-          Crea listas para las compras, un viaje o tus pendientes, y agrega un calendario para tus fechas.
-          Solo tú los ves, salvo las listas que decidas compartir.
+          Crea listas para las compras, un viaje o tus pendientes. Solo tú las ves, salvo las que decidas compartir.
+          Tus fechas van en el calendario.
         </p>
       )}
-      <SpaceCards familyId={null} lists={activeLists} calendar={calendar} onCreate={() => setCreating(true)} />
+      <SpaceCards lists={activeLists} onCreate={() => setCreating(true)} />
       {empty && families.length === 0 && (
         <Link className="text-button family-settings-link" to="/grupos/nuevo">
           <Users size={15} /> ¿Lo quieres compartir con tu familia o amigos? Crea un grupo

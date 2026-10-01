@@ -53,7 +53,7 @@ describe("crear y ver familias", () => {
     const me = (await agent.get("/api/me")).body;
     expect(me.families.map(({ id }: { id: string }) => id)).toEqual([family.id]);
     expect(me.lists).toEqual([]);
-    expect(me.calendars).toEqual([]);
+    expect((await agent.get("/api/calendar")).body.events).toEqual([]);
   });
 
   it("valida el nombre", async () => {
@@ -168,16 +168,15 @@ describe("roles y permisos", () => {
     await addMember(own.id, admin.user.id, "admin");
     const shopping = await createList(owner.agent, own.id);
     await owner.agent.post(`/api/lists/${shopping.id}/items`).send({ title: "Algo" });
-    const calendar = (await owner.agent.post("/api/calendars").send({ name: "Casa", familyId: own.id }).expect(201)).body;
-    await owner.agent.post(`/api/calendars/${calendar.id}/events`).send({ title: "Algo", kind: "event", date: "2026-11-01" }).expect(201);
+    const event = (await owner.agent.post("/api/calendar/events").send({ title: "Algo", date: "2026-11-01", familyId: own.id }).expect(201)).body;
     await admin.agent.delete(`/api/families/${own.id}`).expect(403);
     await owner.agent.delete(`/api/families/${own.id}`).expect(204);
     await owner.agent.get(`/api/lists/${shopping.id}`).expect(404);
-    await owner.agent.get(`/api/calendars/${calendar.id}`).expect(404);
     const leftovers = await db.execute({
       sql: `SELECT (SELECT COUNT(*) FROM list_items WHERE list_id = ?)
-        + (SELECT COUNT(*) FROM calendar_events WHERE calendar_id = ?) AS total`,
-      args: [shopping.id, calendar.id]
+        + (SELECT COUNT(*) FROM calendar_events WHERE id = ?)
+        + (SELECT COUNT(*) FROM calendars WHERE family_id = ?) AS total`,
+      args: [shopping.id, event.id, own.id]
     });
     expect(Number(leftovers.rows[0].total)).toBe(0);
   });

@@ -1,34 +1,18 @@
-export type Location = { id: string; name: string };
-
-export type CalendarEntry = {
+// Evento del calendario. Es de un espacio: personal (familyId null) o de un grupo.
+export type CalendarEvent = {
   id: string;
+  familyId: string | null;
   title: string;
-  kind: "event" | "reminder";
   date: string;
   time: string | null;
   recurrence: "none" | "yearly";
   notes: string | null;
+  createdBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
-// Calendario: como una lista, su dueño es una persona o un grupo.
-export type CalendarRecord = {
-  id: string;
-  ownerUserId: string | null;
-  familyId: string | null;
-  name: string;
-  icon: string;
-  color: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  archivedAt: string | null;
-};
-
-export type CalendarSummary = CalendarRecord & { access: "owner" | "editor" };
-
-export type CalendarEntryInput =Pick<CalendarEntry, "title" | "kind" | "date" | "time" | "recurrence" | "notes">;
+export type CalendarEventInput = Pick<CalendarEvent, "title" | "date" | "time" | "recurrence" | "notes">;
 
 export type FamilyRole = "owner" | "admin" | "member";
 

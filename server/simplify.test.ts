@@ -34,7 +34,7 @@ beforeAll(async () => {
     },
     {
       sql: `INSERT INTO calendar_entries (id, family_id, title, kind, event_date, event_time, recurrence, notes, created_at, updated_at)
-        VALUES ('evento-viejo', 'VIEJO', 'Cumpleaños', 'event', '2026-10-12', '18:30', 'yearly', NULL, ?, ?)`,
+        VALUES ('evento-viejo', 'VIEJO', 'Cumpleaños', 'reminder', '2026-10-12', '18:30', 'yearly', NULL, ?, ?)`,
       args: [now, now]
     },
     "DELETE FROM app_migrations"
@@ -54,13 +54,11 @@ describe("simplificación del modelo", () => {
     expect(detail.items.map(({ title }: { title: string }) => title)).toEqual(["Leche"]);
   });
 
-  it("el calendario del grupo pasa a ser un calendario del grupo con sus eventos", async () => {
-    const calendars = (await member.agent.get("/api/me")).body.calendars;
-    expect(calendars).toEqual([expect.objectContaining({
-      id: "cal-VIEJO", familyId: "VIEJO", name: "Calendario", icon: "calendar", createdBy: owner.user.id, access: "editor"
-    })]);
-    const detail = (await member.agent.get("/api/calendars/cal-VIEJO").expect(200)).body;
-    expect(detail.events).toEqual([expect.objectContaining({ id: "evento-viejo", title: "Cumpleaños", time: "18:30" })]);
+  it("los eventos del calendario antiguo del grupo pasan al calendario, como eventos del grupo", async () => {
+    const events = (await member.agent.get("/api/calendar").expect(200)).body.events;
+    expect(events).toEqual([expect.objectContaining({ id: "evento-viejo", familyId: "VIEJO", title: "Cumpleaños", time: "18:30" })]);
+    const kind = await db.execute("SELECT kind FROM calendar_events WHERE id = 'evento-viejo'");
+    expect(String(kind.rows[0].kind)).toBe("event");
   });
 
   it("los grupos sin eventos no reciben calendario", async () => {

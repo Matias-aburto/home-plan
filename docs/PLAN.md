@@ -6,9 +6,10 @@ Estado: **publicado**. Etapas 0A a 7 completadas.
 
 > **Simplificación (después de publicar):** la app pasó a ser de listas y calendarios.
 > - Un solo tipo de lista (en la base, `kind = 'checklist'`). Se quitaron las ubicaciones, las sugerencias de productos y los responsables; las columnas `location_id` y `assignee_user_id` quedan en `NULL` y las tablas `places` y `learned_names` sin uso.
-> - Los calendarios son una entidad propia (`calendars` y `calendar_events`), **uno por espacio** (lo personal o un grupo; índices únicos parciales), un complemento que se agrega o se quita. No se comparten con personas puntuales. `GET /api/calendars` devuelve la agenda: todos los calendarios visibles con sus eventos; la vista `/agenda` los mezcla con el color de cada uno. Acceso: dueño, o miembro del grupo (owner/admin administran, member edita eventos). API en `/api/calendars`.
+> - **Un solo calendario** por persona (`/calendario`) con sus eventos personales y los de sus grupos. Cada evento es de un espacio (personal o un grupo) y se mueve entre espacios al editarlo; sacarlo de un grupo solo lo puede hacer quien lo creó o quien administra el grupo. Un solo tipo: evento (sin notificaciones no había diferencia con "recordatorio"). Por dentro, cada espacio tiene un calendario interno (`calendars`, uno por espacio) que se crea con su primer evento. API en `/api/calendar`.
+> - El color de cada espacio en el calendario es una preferencia de cada persona (`user_space_colors`); sin elegir, se asigna por posición. Así el color personal y el de un grupo nunca chocan por decisión de otro.
 > - Los grupos se crean vacíos. El calendario único de cada grupo con eventos pasó a ser un calendario "Calendario" del grupo (migración `group-calendars`, una sola vez, registrada en `app_migrations`); `calendar_entries` queda como respaldo.
-> - En la interfaz, un botón "Nuevo" crea una lista o un calendario y pregunta dónde (personal o un grupo). Rutas `/calendarios/:id`; `/grupos/:id/calendario` redirige al calendario del grupo.
+> - La portada de cada grupo muestra sus próximos eventos. `/grupos/:id/calendario` abre el calendario mostrando solo ese grupo.
 >
 > Lo que sigue describe el diseño original; donde no coincide, vale esta nota.
 

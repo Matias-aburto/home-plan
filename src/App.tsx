@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes, useLocation, useParams } from "react-router";
 import { useSession } from "./auth/AuthProvider";
-import { AgendaPage } from "./calendar/AgendaPage";
-import { CalendarRoute } from "./calendar/CalendarPage";
+import { CalendarPage } from "./calendar/CalendarPage";
 import { LoginPage } from "./auth/LoginPage";
 import { IosInstallGuide } from "./components/IosInstallGuide";
 import { Loading } from "./components/Loading";
@@ -69,8 +68,9 @@ function SignedInApp({
           <Route path="invitaciones" element={<InvitationsPage />} />
           <Route path="listas/:listId" element={<ListRoute />} />
           <Route path="grupos/:familyId" element={<FamilyHomePage />} />
-          <Route path="agenda" element={<AgendaPage />} />
-          <Route path="calendarios/:calendarId" element={<CalendarRoute />} />
+          <Route path="calendario" element={<CalendarPage />} />
+          <Route path="agenda" element={<Navigate to="/calendario" replace />} />
+          <Route path="calendarios/*" element={<Navigate to="/calendario" replace />} />
           <Route path="grupos/:familyId/calendario" element={<GroupCalendarRedirect />} />
           <Route path="grupos/:familyId/ajustes" element={<FamilySettingsRoute />} />
           <Route path="familias/*" element={<FamiliesRedirect />} />
@@ -81,12 +81,10 @@ function SignedInApp({
   );
 }
 
-// El calendario único de cada grupo pasó a ser un calendario más del grupo.
+// El calendario de cada grupo pasó a ser el calendario único, mostrando solo ese grupo.
 function GroupCalendarRedirect() {
   const { familyId = "" } = useParams();
-  const { calendars } = useMe();
-  const calendar = calendars.find((candidate) => candidate.familyId === familyId.toUpperCase());
-  return <Navigate to={calendar ? `/calendarios/${calendar.id}` : `/grupos/${familyId}`} replace />;
+  return <Navigate to={`/calendario?espacio=${familyId.toUpperCase()}`} replace />;
 }
 
 // Los enlaces de antes del cambio a grupos (/familias/...) siguen funcionando.

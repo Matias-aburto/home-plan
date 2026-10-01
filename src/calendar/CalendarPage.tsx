@@ -1,139 +1,130 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { CircleAlert, Settings2 } from "lucide-react";
-import { Link, useParams } from "react-router";
-import { ApiError, api } from "../api/client";
+import { useState } from "react";
+import { CalendarDays, Check, Palette, X } from "lucide-react";
+import { useSearchParams } from "react-router";
 import { Loading } from "../components/Loading";
 import { useMe } from "../data/MeProvider";
-import { hasPendingFor, mutate, onSyncEvent, syncEvents, type SyncedDetail } from "../data/sync";
-import { ListIcon } from "../lists/listStyle";
-import { cacheMeta, getCachedMeta } from "../offline";
-import type { AgendaEntry, CalendarDetail, OfflineMutation } from "../types";
+import { listColorNames, listColors } from "../lists/listStyle";
 import { CalendarSection } from "./CalendarSection";
-import { CalendarSettingsModal } from "./CalendarSettingsModal";
-import { calendarOption, calendarSpaceName } from "./spaces";
+import { spaceKey, useSpaces, type Space } from "./spaces";
+import { useCalendarEvents } from "./useCalendarEvents";
 
-// La ruta monta una página nueva por calendario para no arrastrar estado entre calendarios.
-export function CalendarRoute() {
-  const { calendarId = "" } = useParams();
-  return <CalendarPage key={calendarId} calendarId={calendarId} />;
+const hiddenKey = "casa:calendar-hidden";
+
+function readHidden() {
+  try {
+    return new Set<string>(JSON.parse(localStorage.getItem(hiddenKey) || "[]"));
+  } catch {
+    return new Set<string>();
+  }
 }
 
-function CalendarPage({ calendarId }: { calendarId: string }) {
-  const me = useMe();
-  const [detail, setDetail] = useState<CalendarDetail | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "offline">("loading");
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const detailRef = useRef(detail);
-  detailRef.current = detail;
-  const cacheId = `calendar:${calendarId}`;
+// El calendario: los eventos personales y los de todos mis grupos, cada espacio con su color.
+// Con ?espacio=<id> se abre mostrando solo ese espacio (por ejemplo, desde la portada de un grupo).
+export function CalendarPage() {
+  const spaces = useSpaces();
+  const { events, apply } = useCalendarEvents();
+  const [params, setParams] = useSearchParams();
+  const only = params.get("espacio");
+  const [hidden, setHidden] = useState(readHidden);
+  const [colorsOpen, setColorsOpen] = useState(false);
 
-  const load = useCallback(async () => {
-    if (await hasPendingFor({ calendarId })) return;
+  const isVisible = (space: Space) => only ? space.key === only : !hidden.has(space.key);
+  const visibleSpaces = spaces.filter(isVisible);
+
+  function toggle(key: string) {
+    // Al tocar un filtro se sale del modo "solo este espacio".
+    const next = only ? new Set(spaces.map((space) => space.key).filter((candidate) => candidate !== only)) : new Set(hidden);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setHidden(next);
+    if (only) setParams({}, { replace: true });
     try {
-      const fresh = await api<CalendarDetail>(`/api/calendars/${calendarId}`);
-      setDetail(fresh);
-      setStatus("ready");
-      await cacheMeta(cacheId, fresh);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 404) {
-        setStatus("missing");
-        return;
-      }
-      if (!detailRef.current) setStatus("offline");
+      localStorage.setItem(hiddenKey, JSON.stringify([...next]));
+    } catch {
+      // Sin almacenamiento, el filtro dura solo esta visita.
     }
-  }, [calendarId, cacheId]);
-
-  useEffect(() => {
-    void getCachedMeta<CalendarDetail>(cacheId).then((cached) => {
-      if (cached && !detailRef.current) {
-        setDetail(cached);
-        setStatus("ready");
-      }
-    });
-    void load();
-  }, [cacheId, load]);
-
-  useEffect(() => {
-    const offMe = onSyncEvent<{ listId?: string; calendarId?: string }>(syncEvents.meChanged, (data) => {
-      if (data?.calendarId === calendarId || (!data?.calendarId && !data?.listId)) void load();
-    });
-    const offSynced = onSyncEvent<SyncedDetail>(syncEvents.synced, (data) => {
-      if (data.calendarIds?.includes(calendarId)) void load();
-    });
-    const offResync = onSyncEvent(syncEvents.resync, () => void load());
-    return () => {
-      offMe();
-      offSynced();
-      offResync();
-    };
-  }, [calendarId, load]);
-
-  // El calendario recién agregado sin conexión aún no existe en el servidor: se arma desde el menú.
-  const summary = me.calendars.find((calendar) => calendar.id === calendarId);
-  useEffect(() => {
-    if (!detail && status === "offline" && summary) {
-      setDetail({ calendar: summary, events: [] });
-      setStatus("ready");
-    }
-  }, [detail, status, summary]);
-
-  if (status === "missing" || (status === "offline" && !summary)) {
-    return (
-      <section className="content">
-        <div className="empty-state animate-in">
-          <div><CircleAlert size={28} /></div>
-          <h3>{status === "missing" ? "No encontramos este calendario" : "Sin conexión"}</h3>
-          <p>{status === "missing"
-            ? "Puede que lo hayan quitado o que ya no tengas acceso."
-            : "Necesitas conectarte una vez para ver este calendario sin internet."}</p>
-          <Link className="secondary-button empty-state-action" to="/">Volver al inicio</Link>
-        </div>
-      </section>
-    );
   }
-  if (!detail) return <Loading />;
 
-  // El menú (MeProvider) tiene el color más reciente.
-  const calendar = summary ? { ...detail.calendar, ...summary } : detail.calendar;
-  const spaceName = calendarSpaceName(calendar, me.families);
-  const entries: AgendaEntry[] = detail.events.map((event) => ({ ...event, calendarId }));
-
-  async function apply(events: AgendaEntry[], operation: OfflineMutation) {
-    const next = { calendar, events };
-    setDetail(next);
-    await cacheMeta(cacheId, next);
-    await mutate({ ...operation, calendarId });
-  }
+  if (!events) return <Loading />;
+  const visibleKeys = new Set(visibleSpaces.map(({ key }) => key));
+  const shown = events.filter((event) => visibleKeys.has(spaceKey(event.familyId)));
 
   return (
     <>
       <CalendarSection
         heading={(
           <div className="title-only list-title">
-            <ListIcon icon="calendar" color={calendar.color} size={20} />
-            <div>
-              <span className="space-eyebrow">{spaceName}</span>
-              <h2>Calendario</h2>
-            </div>
+            <span className="list-icon list-color-neutral" aria-hidden="true"><CalendarDays size={20} /></span>
+            <h2>Calendario</h2>
           </div>
         )}
-        actions={calendar.access === "owner" && (
-          <button className="manage-locations-button" onClick={() => setSettingsOpen(true)} aria-label="Ajustes del calendario">
-            <Settings2 size={17} />
-          </button>
+        banner={spaces.length > 1 && (
+          <div className="agenda-legend" role="group" aria-label="Espacios visibles">
+            {spaces.map((space) => (
+              <button
+                key={space.key}
+                className={isVisible(space) ? "" : "off"}
+                onClick={() => toggle(space.key)}
+                aria-pressed={isVisible(space)}
+              >
+                <i className={`chip-dot dot-${space.color}`} /> {space.label}
+              </button>
+            ))}
+            <button className="legend-colors" onClick={() => setColorsOpen(true)} aria-label="Cambiar colores">
+              <Palette size={14} />
+            </button>
+          </div>
         )}
-        calendars={[calendarOption(calendar, me.families)]}
-        entries={entries}
-        onMutate={apply}
+        spaces={spaces}
+        visibleSpaces={visibleSpaces}
+        // Al editar se trabaja sobre todos los eventos: los ocultos no se pierden.
+        events={shown}
+        onMutate={(next, operation) => {
+          const nextIds = new Set(next.map(({ id }) => id));
+          const shownIds = new Set(shown.map(({ id }) => id));
+          // Se conservan los eventos ocultos; los visibles se reemplazan por la nueva versión.
+          return apply([...events.filter(({ id }) => !shownIds.has(id) && !nextIds.has(id)), ...next], operation);
+        }}
       />
-      {settingsOpen && (
-        <CalendarSettingsModal
-          calendar={calendar}
-          spaceName={spaceName}
-          eventCount={detail.events.length}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
+      {colorsOpen && <SpaceColorsModal spaces={spaces} onClose={() => setColorsOpen(false)} />}
     </>
+  );
+}
+
+// Cada persona elige con qué color ve cada espacio; no cambia lo que ven los demás.
+function SpaceColorsModal({ spaces, onClose }: { spaces: Space[]; onClose: () => void }) {
+  const { setSpaceColor } = useMe();
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <section className="locations-modal list-settings-modal animate-in" onMouseDown={(event) => event.stopPropagation()}>
+        <header>
+          <div>
+            <div className="eyebrow">Calendario</div>
+            <h2>Colores</h2>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
+        </header>
+        <p>Elige con qué color ves cada espacio. Es solo para ti: los demás eligen los suyos.</p>
+        {spaces.map((space) => (
+          <fieldset key={space.key} className="space-color-row">
+            <legend>{space.label}</legend>
+            <div className="color-picker">
+              {listColors.map((color) => (
+                <button
+                  type="button"
+                  key={color}
+                  className={`list-color-${color} ${space.color === color ? "selected" : ""}`}
+                  onClick={() => void setSpaceColor(space.key, color)}
+                  aria-label={`${space.label}: ${listColorNames[color]}`}
+                  aria-pressed={space.color === color}
+                >
+                  {space.color === color && <Check size={15} strokeWidth={3} />}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        ))}
+      </section>
+    </div>
   );
 }

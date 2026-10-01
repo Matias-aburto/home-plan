@@ -1,29 +1,29 @@
 import { Router } from "express";
-import { visibleCalendars } from "../db/calendars.js";
-import { userFamilies } from "../db/families.js";
+import { getMembership, userFamilies } from "../db/families.js";
 import { receivedInvitations } from "../db/invitations.js";
 import { setListOrder, visibleLists } from "../db/lists.js";
+import { setSpaceColor, spaceColors } from "../db/spaceColors.js";
 import { updateUser, userColors } from "../db/users.js";
 import { currentUser } from "../http/session.js";
-import { cleanText, readIdList } from "../http/validation.js";
+import { cleanText, listColors, oneOf, readIdList } from "../http/validation.js";
 import { notifyUserChanged } from "../realtime.js";
 
 export const meRouter = Router();
 
-// Arranque de la app: grupos, listas y calendarios visibles, e invitaciones pendientes recibidas.
+// Arranque de la app: grupos, listas visibles, colores de cada espacio e invitaciones pendientes recibidas.
 meRouter.get("/", async (_request, response) => {
   const user = currentUser(response);
-  const [families, lists, calendars, invitations] = await Promise.all([
+  const [families, lists, colors, invitations] = await Promise.all([
     userFamilies(user.id),
     visibleLists(user.id),
-    visibleCalendars(user.id),
+    spaceColors(user.id),
     receivedInvitations(user.email)
   ]);
   response.json({
     user,
     families,
     lists,
-    calendars,
+    spaceColors: colors,
     invitations: invitations.map(({ invitedBy: _invitedBy, ...invitation }) => invitation)
   });
 });
@@ -38,6 +38,19 @@ meRouter.patch("/", async (request, response) => {
   }
   const user = await updateUser(currentUser(response).id, { name, color });
   return response.json({ user });
+});
+
+// Color con que el usuario ve un espacio en su calendario.
+meRouter.put("/space-colors", async (request, response) => {
+  const user = currentUser(response);
+  const space = cleanText(request.body.space, 20);
+  const color = oneOf(listColors, request.body.color);
+  if (!space || !color) return response.status(400).json({ message: "Elige un color válido." });
+  const key = space === "personal" ? space : space.toUpperCase();
+  if (key !== "personal" && !(await getMembership(key, user.id))) return response.status(404).json({ message: "No encontramos ese grupo." });
+  await setSpaceColor(user.id, key, color);
+  await notifyUserChanged(user.id);
+  return response.json({ ok: true });
 });
 
 // Orden de las listas en el menú del usuario.

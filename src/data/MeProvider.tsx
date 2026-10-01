@@ -1,16 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import { cacheMeta, getCachedMeta, getPendingOperations } from "../offline";
-import type { CalendarSummary, FamilySummary, Invitation, ListSummary, Me, User } from "../types";
+import type { FamilySummary, Invitation, ListSummary, Me, User } from "../types";
 import { mutate, onSyncEvent, syncEvents } from "./sync";
 
-// Lo que se elige al crear una lista o un calendario.
+// Lo que se elige al crear una lista.
 export type AppearanceInput = { name: string; icon: string; color: string };
 type Changes = Partial<AppearanceInput> & { archived?: boolean };
 
 type MeContext = {
   lists: ListSummary[];
-  calendars: CalendarSummary[];
+  spaceColors: Record<string, string>;
   families: FamilySummary[];
   invitations: Invitation[];
   loaded: boolean;
@@ -23,10 +23,8 @@ type MeContext = {
   updateList: (listId: string, changes: Changes) => Promise<void>;
   deleteList: (listId: string) => Promise<void>;
   reorderLists: (ids: string[]) => Promise<void>;
-  // El calendario es un complemento del espacio: uno por espacio, sin nombre propio.
-  createCalendar: (color: string, familyId?: string | null) => Promise<string>;
-  updateCalendar: (calendarId: string, changes: Changes) => Promise<void>;
-  deleteCalendar: (calendarId: string) => Promise<void>;
+  // Color con que veo un espacio ("personal" o id del grupo) en el calendario.
+  setSpaceColor: (space: string, color: string) => Promise<void>;
   // Actualiza solo en este dispositivo (por ejemplo, el contador de pendientes tras editar ítems).
   patchListLocally: (listId: string, changes: Partial<ListSummary>) => void;
 };
@@ -36,14 +34,14 @@ const cacheKey = "me";
 
 export function MeProvider({ user, children }: { user: User; children: ReactNode }) {
   const [lists, setLists] = useState<ListSummary[]>([]);
-  const [calendars, setCalendars] = useState<CalendarSummary[]>([]);
+  const [spaceColors, setSpaceColors] = useState<Record<string, string>>({});
   const [families, setFamilies] = useState<FamilySummary[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loaded, setLoaded] = useState(false);
   const listsRef = useRef(lists);
   listsRef.current = lists;
-  const calendarsRef = useRef(calendars);
-  calendarsRef.current = calendars;
+  const spaceColorsRef = useRef(spaceColors);
+  spaceColorsRef.current = spaceColors;
   const familiesRef = useRef(families);
   familiesRef.current = families;
 
@@ -53,16 +51,16 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
   const store = useCallback((changes: Partial<Omit<Me, "user">>) => {
     const next = {
       lists: changes.lists ?? listsRef.current,
-      calendars: changes.calendars ?? calendarsRef.current,
+      spaceColors: changes.spaceColors ?? spaceColorsRef.current,
       families: changes.families ?? familiesRef.current,
       invitations: changes.invitations ?? invitationsRef.current
     };
     setLists(next.lists);
-    setCalendars(next.calendars);
+    setSpaceColors(next.spaceColors);
     setFamilies(next.families);
     setInvitations(next.invitations);
     listsRef.current = next.lists;
-    calendarsRef.current = next.calendars;
+    spaceColorsRef.current = next.spaceColors;
     familiesRef.current = next.families;
     invitationsRef.current = next.invitations;
     void cacheMeta(cacheKey, { user, ...next } satisfies Me);
@@ -84,7 +82,7 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
     void getCachedMeta<Me>(cacheKey).then((cached) => {
       if (cached && cached.user.id === user.id) {
         setLists(cached.lists);
-        setCalendars(cached.calendars ?? []);
+        setSpaceColors(cached.spaceColors ?? {});
         setFamilies(cached.families ?? []);
         setInvitations(cached.invitations ?? []);
         setLoaded(true);
@@ -163,40 +161,19 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
     store({ lists: listsRef.current.map((list) => list.id === listId ? { ...list, ...changes } : list) });
   }, [store]);
 
-  const createCalendar = useCallback(async (color: string, familyId: string | null = null) => {
-    const input = { name: "Calendario", icon: "calendar", color };
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const role = familyId ? familiesRef.current.find((family) => family.id === familyId)?.role : null;
-    store({ calendars: [...calendarsRef.current, {
-      id, ownerUserId: familyId ? null : user.id, familyId, ...input, createdBy: user.id, createdAt: now, updatedAt: now,
-      archivedAt: null, access: !familyId || role === "owner" || role === "admin" ? "owner" : "editor"
-    }] });
-    await mutate({ url: "/api/calendars", method: "POST", body: { id, ...input, familyId }, calendarId: id });
-    return id;
-  }, [store, user.id]);
-
-  const updateCalendar = useCallback(async (calendarId: string, changes: Changes) => {
-    const { archived, ...fields } = changes;
-    store({ calendars: calendarsRef.current.map((calendar) => calendar.id === calendarId
-      ? { ...calendar, ...fields, archivedAt: archivedAt(calendar.archivedAt, archived) }
-      : calendar) });
-    await mutate({ url: `/api/calendars/${calendarId}`, method: "PATCH", body: changes, calendarId });
-  }, [store]);
-
-  const deleteCalendar = useCallback(async (calendarId: string) => {
-    store({ calendars: calendarsRef.current.filter((calendar) => calendar.id !== calendarId) });
-    await mutate({ url: `/api/calendars/${calendarId}`, method: "DELETE", calendarId });
+  const setSpaceColor = useCallback(async (space: string, color: string) => {
+    store({ spaceColors: { ...spaceColorsRef.current, [space]: color } });
+    await mutate({ url: "/api/me/space-colors", method: "PUT", body: { space, color } });
   }, [store]);
 
   const value = useMemo(
     () => ({
-      lists, calendars, families, invitations, loaded, refresh, respondInvitation, createFamily,
-      createList, updateList, deleteList, reorderLists, patchListLocally, createCalendar, updateCalendar, deleteCalendar
+      lists, spaceColors, families, invitations, loaded, refresh, respondInvitation, createFamily,
+      createList, updateList, deleteList, reorderLists, patchListLocally, setSpaceColor
     }),
     [
-      lists, calendars, families, invitations, loaded, refresh, respondInvitation, createFamily,
-      createList, updateList, deleteList, reorderLists, patchListLocally, createCalendar, updateCalendar, deleteCalendar
+      lists, spaceColors, families, invitations, loaded, refresh, respondInvitation, createFamily,
+      createList, updateList, deleteList, reorderLists, patchListLocally, setSpaceColor
     ]
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;

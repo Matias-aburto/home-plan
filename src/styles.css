@@ -923,7 +923,6 @@ textarea:focus-visible {
   background: #4f8c75;
   border-radius: 50%;
 }
-.calendar-dots b.reminder { background: #d3974e; }
 /* En la agenda, cada calendario se distingue por su color. */
 .dot-green { background: #3f8a6c !important; }
 .dot-blue { background: #4f7bb3 !important; }
@@ -934,7 +933,7 @@ textarea:focus-visible {
 .dot-neutral { background: #9aa39e !important; }
 .chip-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; }
 .upcoming-source { width: 7px; height: 7px; flex: none; border-radius: 50%; }
-.entry-source { padding: 1px 7px; border-radius: 999px; font-size: 11px; font-style: normal; font-weight: 700; }
+.entry-source { padding: 1px 7px; border-radius: 999px; font-size: 10px; font-style: normal; font-weight: 700; }
 .calendar-choice { min-width: 0; margin: 0 0 14px; padding: 0; border: 0; }
 .calendar-choice legend { margin-bottom: 8px; color: #435149; font-size: 12px; font-weight: 700; }
 .agenda-legend { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1000,7 +999,6 @@ textarea:focus-visible {
   border-radius: 12px;
 }
 
-.calendar-entry-row.reminder { background: #fdf8ef; border-color: #efe2ca; }
 .calendar-entry-row > svg { flex: 0 0 auto; color: #9aa39e; }
 
 .entry-kind-icon {
@@ -1014,7 +1012,6 @@ textarea:focus-visible {
   border-radius: 9px;
 }
 
-.calendar-entry-row.reminder .entry-kind-icon { color: #9a682b; background: #f6e7c9; }
 
 .entry-copy {
   min-width: 0;
@@ -1243,32 +1240,6 @@ textarea:focus-visible {
 
 .calendar-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-.entry-type-picker {
-  padding: 4px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  background: #f3f4f0;
-  border-radius: 12px;
-}
-.entry-type-picker button {
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: #69756f;
-  background: transparent;
-  border: 0;
-  border-radius: 9px;
-  font-size: 12px;
-  font-weight: 700;
-}
-.entry-type-picker button.selected {
-  color: var(--green);
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(35, 52, 43, .08);
-}
 
 .calendar-modal-actions {
   margin-top: 5px;
@@ -2572,3 +2543,10 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 .space-intro { max-width: 560px; margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .space-links { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .nav-agenda { padding-bottom: 4px; }
+.group-upcoming { margin-top: 28px; max-width: 560px; }
+.group-upcoming h3 { margin: 0 0 10px; font-family: "Manrope", sans-serif; font-size: 16px; }
+.group-upcoming .space-intro { margin-top: 0; }
+.see-all { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; color: var(--green); font-size: 13px; font-weight: 600; text-decoration: none; }
+.agenda-legend .legend-colors { width: 30px; padding: 0; justify-content: center; color: var(--muted); }
+.space-color-row { min-width: 0; margin: 0 0 14px; padding: 0; border: 0; }
+.space-color-row legend { margin-bottom: 8px; color: #435149; font-size: 13px; font-weight: 700; }
