@@ -9,10 +9,13 @@ delete process.env.TURSO_AUTH_TOKEN;
 delete process.env.ABLY_API_KEY;
 
 // Google no se contacta en tests: una credencial "ok:<email>" es válida y cualquier otra no.
+// "ok:<email>#<nonce>" simula un token pedido con ese nonce (flujo por redirección).
 vi.mock("../auth/google.js", () => ({
   googleClientId: "test-client-id",
-  verifyGoogleCredential: async (credential: string) =>
-    credential.startsWith("ok:")
-      ? { sub: `google-${credential.slice(3)}`, email: credential.slice(3), name: "Persona Test", picture: null }
-      : null
+  verifyGoogleCredential: async (credential: string, expectedNonce?: string) => {
+    if (!credential.startsWith("ok:")) return null;
+    const [email, nonce] = credential.slice(3).split("#");
+    if (expectedNonce !== undefined && nonce !== expectedNonce) return null;
+    return { sub: `google-${email}`, email, name: "Persona Test", picture: null };
+  }
 }));

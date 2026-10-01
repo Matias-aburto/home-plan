@@ -45,9 +45,13 @@ export async function requireUser(request: Request, response: Response, next: Ne
   next();
 }
 
+// Rutas que reciben POST desde otro sitio a propósito. Se protegen de otra forma (nonce del login).
+const crossOriginPosts = new Set(["/auth/google/redirect"]);
+
 // Complementa SameSite=Lax: rechaza escrituras que vengan de otro origen.
 export function requireSameOrigin(request: Request, response: Response, next: NextFunction) {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return next();
+  if (crossOriginPosts.has(request.path)) return next();
   const origin = request.get("origin");
   if (origin) {
     let host: string | null = null;

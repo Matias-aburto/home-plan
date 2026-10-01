@@ -60,6 +60,62 @@ describe("login con Google", () => {
   });
 });
 
+describe("login por redirección", () => {
+  async function startLogin(returnPath?: string) {
+    const agent = request.agent(app);
+    const response = await agent.get("/api/auth/nonce").query(returnPath ? { return: returnPath } : {}).expect(200);
+    const cookies = ([] as string[]).concat(response.headers["set-cookie"] ?? []);
+    // Las cookies del login son Secure: el cliente de supertest no las envía por http, así que se pasan a mano.
+    const loginCookies = cookies.map((cookie) => cookie.split(";")[0]).join("; ");
+    return { agent, nonce: response.body.nonce as string, cookies, loginCookies };
+  }
+
+  it("guarda el nonce en una cookie que llega desde Google", async () => {
+    const { nonce, cookies } = await startLogin();
+    expect(nonce).toMatch(/^[\w-]{20,}$/);
+    const nonceCookie = cookies.find((cookie) => cookie.startsWith("login_nonce="));
+    expect(nonceCookie).toMatch(/HttpOnly/);
+    expect(nonceCookie).toMatch(/SameSite=None/);
+    expect(nonceCookie).toMatch(/Secure/);
+  });
+
+  it("acepta el token con el mismo nonce, crea la sesión y vuelve a la página pedida", async () => {
+    const { agent, nonce, loginCookies } = await startLogin("/invitacion/abc");
+    const response = await agent.post("/api/auth/google/redirect")
+      .set("Origin", "https://accounts.google.com")
+      .set("Cookie", loginCookies)
+      .type("form")
+      .send({ credential: `ok:redirect@test.cl#${nonce}`, g_csrf_token: "x" })
+      .expect(303);
+    expect(response.headers.location).toBe("/invitacion/abc");
+    expect(sessionCookie(response.headers["set-cookie"])).toMatch(/HttpOnly/);
+    const me = await agent.get("/api/me").expect(200);
+    expect(me.body.user.email).toBe("redirect@test.cl");
+  });
+
+  it("rechaza tokens sin nonce, con otro nonce o sin la cookie del navegador", async () => {
+    const { agent, nonce, loginCookies } = await startLogin();
+    for (const credential of ["ok:a@test.cl", "ok:a@test.cl#otro", "falsa"]) {
+      const response = await agent.post("/api/auth/google/redirect").set("Cookie", loginCookies)
+        .type("form").send({ credential }).expect(303);
+      expect(response.headers.location).toBe("/?login=error");
+    }
+    const withoutCookie = await request(app).post("/api/auth/google/redirect").type("form")
+      .send({ credential: `ok:a@test.cl#${nonce}` }).expect(303);
+    expect(withoutCookie.headers.location).toBe("/?login=error");
+    await agent.get("/api/me").expect(401);
+  });
+
+  it("solo vuelve a rutas internas de la app", async () => {
+    for (const returnPath of ["//malicioso.example", "https://malicioso.example", "/\\malicioso.example"]) {
+      const { agent, nonce, loginCookies } = await startLogin(returnPath);
+      const response = await agent.post("/api/auth/google/redirect").set("Cookie", loginCookies).type("form")
+        .send({ credential: `ok:vuelta@test.cl#${nonce}` }).expect(303);
+      expect(response.headers.location).toBe("/");
+    }
+  });
+});
+
 describe("sesión", () => {
   it("exige sesión para la API", async () => {
     await request(app).get("/api/me").expect(401);

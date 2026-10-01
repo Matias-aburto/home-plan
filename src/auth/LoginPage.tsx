@@ -9,7 +9,7 @@ type AuthConfig = { googleClientId: string | null; devLogin: boolean };
 type GoogleIdentity = {
   accounts: {
     id: {
-      initialize: (options: { client_id: string; callback: (response: { credential: string }) => void }) => void;
+      initialize: (options: { client_id: string; ux_mode: "redirect"; login_uri: string; nonce: string }) => void;
       renderButton: (element: HTMLElement, options: Record<string, unknown>) => void;
     };
   };
@@ -48,10 +48,13 @@ export function LoginPage({
   onSignedIn: (user: User) => Promise<void>;
 }) {
   const buttonRef = useRef<HTMLDivElement>(null);
-  // Tras iniciar sesión se queda en la misma URL, así que el enlace de invitación sigue funcionando.
-  const invited = useLocation().pathname.startsWith("/invitacion/");
+  const location = useLocation();
+  // Al volver de Google se regresa a esta misma URL, así que el enlace de invitación sigue funcionando.
+  const invited = location.pathname.startsWith("/invitacion/");
   const [config, setConfig] = useState<AuthConfig | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => new URLSearchParams(location.search).get("login") === "error"
+    ? "No pudimos iniciar sesión con Google. Inténtalo nuevamente."
+    : "");
   const [devEmail, setDevEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -67,25 +70,23 @@ export function LoginPage({
     const clientId = config?.googleClientId;
     if (!clientId) return;
     let cancelled = false;
-    loadGoogleScript()
-      .then(() => {
+    // Sin ventana emergente: el botón lleva a Google y Google vuelve con un POST al servidor, que crea la
+    // sesión y redirige aquí. Las ventanas emergentes las bloquean muchos navegadores y extensiones.
+    const params = new URLSearchParams(location.search);
+    params.delete("login");
+    const query = params.toString();
+    const returnPath = `${location.pathname}${query ? `?${query}` : ""}`;
+    Promise.all([
+      loadGoogleScript(),
+      api<{ nonce: string }>(`/api/auth/nonce?return=${encodeURIComponent(returnPath)}`)
+    ])
+      .then(([, { nonce }]) => {
         if (cancelled || !buttonRef.current || !window.google) return;
         window.google.accounts.id.initialize({
           client_id: clientId,
-          callback: async ({ credential }) => {
-            setSubmitting(true);
-            try {
-              const { user } = await api<{ user: User }>("/api/auth/google", {
-                method: "POST",
-                body: JSON.stringify({ credential })
-              });
-              await onSignedIn(user);
-            } catch (requestError) {
-              setError((requestError as Error).message);
-            } finally {
-              setSubmitting(false);
-            }
-          }
+          ux_mode: "redirect",
+          login_uri: `${window.location.origin}/api/auth/google/redirect`,
+          nonce
         });
         window.google.accounts.id.renderButton(buttonRef.current, {
           theme: "outline",
@@ -96,11 +97,11 @@ export function LoginPage({
           width: Math.min(320, buttonRef.current.clientWidth || 320)
         });
       })
-      .catch((scriptError: Error) => setError(scriptError.message));
+      .catch((loadError: Error) => setError(loadError.message));
     return () => {
       cancelled = true;
     };
-  }, [config?.googleClientId, onSignedIn]);
+  }, [config?.googleClientId, location.pathname, location.search]);
 
   async function devLogin(event: FormEvent) {
     event.preventDefault();
