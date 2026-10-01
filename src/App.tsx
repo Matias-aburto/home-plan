@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation, useParams } from "react-router";
 import { useSession } from "./auth/AuthProvider";
+import { AgendaPage } from "./calendar/AgendaPage";
 import { CalendarRoute } from "./calendar/CalendarPage";
 import { LoginPage } from "./auth/LoginPage";
 import { IosInstallGuide } from "./components/IosInstallGuide";
@@ -68,6 +69,7 @@ function SignedInApp({
           <Route path="invitaciones" element={<InvitationsPage />} />
           <Route path="listas/:listId" element={<ListRoute />} />
           <Route path="grupos/:familyId" element={<FamilyHomePage />} />
+          <Route path="agenda" element={<AgendaPage />} />
           <Route path="calendarios/:calendarId" element={<CalendarRoute />} />
           <Route path="grupos/:familyId/calendario" element={<GroupCalendarRedirect />} />
           <Route path="grupos/:familyId/ajustes" element={<FamilySettingsRoute />} />

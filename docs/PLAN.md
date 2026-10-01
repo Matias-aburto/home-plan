@@ -6,7 +6,7 @@ Estado: **publicado**. Etapas 0A a 7 completadas.
 
 > **Simplificación (después de publicar):** la app pasó a ser de listas y calendarios.
 > - Un solo tipo de lista (en la base, `kind = 'checklist'`). Se quitaron las ubicaciones, las sugerencias de productos y los responsables; las columnas `location_id` y `assignee_user_id` quedan en `NULL` y las tablas `places` y `learned_names` sin uso.
-> - Los calendarios son una entidad propia (`calendars` y `calendar_events`), personal o de un grupo, igual que las listas pero sin compartir con personas puntuales. Acceso: dueño, o miembro del grupo (owner/admin administran, member edita eventos). API en `/api/calendars`.
+> - Los calendarios son una entidad propia (`calendars` y `calendar_events`), **uno por espacio** (lo personal o un grupo; índices únicos parciales), un complemento que se agrega o se quita. No se comparten con personas puntuales. `GET /api/calendars` devuelve la agenda: todos los calendarios visibles con sus eventos; la vista `/agenda` los mezcla con el color de cada uno. Acceso: dueño, o miembro del grupo (owner/admin administran, member edita eventos). API en `/api/calendars`.
 > - Los grupos se crean vacíos. El calendario único de cada grupo con eventos pasó a ser un calendario "Calendario" del grupo (migración `group-calendars`, una sola vez, registrada en `app_migrations`); `calendar_entries` queda como respaldo.
 > - En la interfaz, un botón "Nuevo" crea una lista o un calendario y pregunta dónde (personal o un grupo). Rutas `/calendarios/:id`; `/grupos/:id/calendario` redirige al calendario del grupo.
 >

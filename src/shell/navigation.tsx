@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Settings2 } from "lucide-react";
+import { CalendarRange, Settings2 } from "lucide-react";
 import { useLocation } from "react-router";
 import { useSession } from "../auth/AuthProvider";
 import { useMe } from "../data/MeProvider";
@@ -20,11 +20,12 @@ export type NavSpace = {
   familyId: string | null;
   title: string;
   to: string;
-  // Las listas se pueden reordenar; los calendarios van después, en orden de creación.
+  // Las listas se pueden reordenar.
   lists: NavEntry[];
-  calendars: NavEntry[];
   archived: NavEntry[];
-  // Se pueden crear listas y calendarios en el espacio (no en "Compartidas conmigo").
+  // Su calendario, si se agregó (uno por espacio).
+  calendar: NavEntry | null;
+  // Se pueden crear listas y agregar el calendario (no en "Compartidas conmigo").
   canCreate: boolean;
   // Accesos que no son contenido (ajustes del grupo); no se reordenan.
   links: NavEntry[];
@@ -44,8 +45,8 @@ function calendarEntry(calendar: CalendarSummary): NavEntry {
   return {
     key: `calendar:${calendar.id}`,
     to: `/calendarios/${calendar.id}`,
-    label: calendar.name,
-    icon: <ListIcon icon={calendar.icon} color={calendar.color} size={16} />
+    label: "Calendario",
+    icon: <ListIcon icon="calendar" color={calendar.color} size={16} />
   };
 }
 
@@ -68,12 +69,11 @@ export function useNavigation() {
   const calendarSpace = (calendar: CalendarSummary) => calendar.familyId ?? "personal";
 
   const listsIn = (space: string) => lists.filter((list) => spaceOf(list) === space && !list.archivedAt).map(listEntry);
-  const calendarsIn = (space: string) =>
-    calendars.filter((calendar) => calendarSpace(calendar) === space && !calendar.archivedAt).map(calendarEntry);
-  const archivedIn = (space: string) => [
-    ...lists.filter((list) => spaceOf(list) === space && list.archivedAt).map(listEntry),
-    ...calendars.filter((calendar) => calendarSpace(calendar) === space && calendar.archivedAt).map(calendarEntry)
-  ];
+  const calendarIn = (space: string) => {
+    const calendar = calendars.find((candidate) => calendarSpace(candidate) === space);
+    return calendar ? calendarEntry(calendar) : null;
+  };
+  const archivedIn = (space: string) => lists.filter((list) => spaceOf(list) === space && list.archivedAt).map(listEntry);
   const sharedLists = listsIn("shared");
   const sharedArchived = archivedIn("shared");
 
@@ -84,7 +84,7 @@ export function useNavigation() {
       title: "Personal",
       to: "/personal",
       lists: listsIn("personal"),
-      calendars: calendarsIn("personal"),
+      calendar: calendarIn("personal"),
       archived: archivedIn("personal"),
       canCreate: true,
       links: []
@@ -95,7 +95,7 @@ export function useNavigation() {
       title: family.name,
       to: `/grupos/${family.id}`,
       lists: listsIn(family.id),
-      calendars: calendarsIn(family.id),
+      calendar: calendarIn(family.id),
       archived: archivedIn(family.id),
       canCreate: true,
       links: [
@@ -113,16 +113,26 @@ export function useNavigation() {
       title: "Compartidas conmigo",
       to: "/compartidas",
       lists: sharedLists,
-      calendars: [],
+      calendar: null,
       archived: sharedArchived,
       canCreate: false,
       links: []
     }] : [])
   ];
 
+  // La agenda junta todos los calendarios; aparece cuando hay al menos uno.
+  const agenda: NavEntry | null = calendars.length ? {
+    key: "agenda",
+    to: "/agenda",
+    label: "Agenda",
+    icon: <span className="nav-icon"><CalendarRange size={17} /></span>
+  } : null;
+
   let activeKey: string | null = null;
   let activeSpaceKey = "personal";
-  if (segments[1] === "listas") {
+  if (segments[1] === "agenda") {
+    activeKey = "agenda";
+  } else if (segments[1] === "listas") {
     activeKey = segments[2];
     const list = lists.find(({ id }) => id === segments[2]);
     if (list) activeSpaceKey = spaceOf(list);
@@ -138,5 +148,5 @@ export function useNavigation() {
   }
   const activeSpace = spaces.find((space) => space.key === activeSpaceKey) ?? spaces[0];
 
-  return { spaces, activeSpace, activeKey, families };
+  return { spaces, activeSpace, activeKey, families, agenda, onAgenda: activeKey === "agenda" };
 }

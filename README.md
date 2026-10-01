@@ -7,9 +7,10 @@ El nombre de la app está en `src/lib/brand.tsx` (y en `index.html` / `vite.conf
 ## Qué hace
 
 - **Cuentas con Google.** Cada persona entra con su cuenta; la sesión se guarda en una cookie httpOnly.
-- **Un botón "Nuevo"** para crear una lista o un calendario, personal o de uno de tus grupos, con nombre, ícono y color.
+- **Un botón "Nuevo"** para crear una lista (nombre, ícono y color) o agregar el calendario, en lo personal o en uno de tus grupos.
 - **Listas**: un solo tipo, ítems para marcar. Se renombran, archivan, reordenan y eliminan.
-- **Calendarios** con eventos y recordatorios (también anuales). Son personales o de un grupo; no se comparten con personas puntuales.
+- **Calendario como complemento**: uno por espacio (lo personal y cada grupo), con eventos y recordatorios, también anuales. No se comparte con personas puntuales.
+- **Agenda**: junta tu calendario personal y los de tus grupos, cada uno con su color; se pueden ocultar algunos.
 - **Grupos.** Se crean vacíos. Una persona puede estar en varios, cada uno con sus listas, calendarios y roles (dueño, administrador, miembro). Internamente el código y la base siguen llamándolos `family`.
 - **Invitaciones** por email o enlace (un solo uso, vencen en 7 días), con bandeja para aceptar o rechazar.
 - **Compartir una lista** con personas puntuales, con permiso de edición o solo lectura. Las listas se pueden mover entre lo personal y un grupo.

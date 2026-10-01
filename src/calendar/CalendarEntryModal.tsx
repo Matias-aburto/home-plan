@@ -1,17 +1,21 @@
 import { useState, type FormEvent } from "react";
 import { Bell, CalendarDays, Trash2, X } from "lucide-react";
 import type { CalendarEntry } from "../types";
+import type { CalendarOption } from "./CalendarSection";
 
 export function CalendarEntryModal({
   entry,
   defaultDate,
+  calendars,
   onSave,
   onDelete,
   onClose
 }: {
   entry: CalendarEntry | null;
   defaultDate: string;
-  onSave: (entry: Omit<CalendarEntry, "id" | "createdAt" | "updatedAt">) => Promise<void>;
+  // Dónde se puede crear; con más de uno se pregunta. Al editar, el evento se queda en su calendario.
+  calendars: CalendarOption[];
+  onSave: (entry: Omit<CalendarEntry, "id" | "createdAt" | "updatedAt">, calendarId: string) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -21,6 +25,7 @@ export function CalendarEntryModal({
   const [time, setTime] = useState(entry?.time || "");
   const [recurrence, setRecurrence] = useState<CalendarEntry["recurrence"]>(entry?.recurrence || "none");
   const [notes, setNotes] = useState(entry?.notes || "");
+  const [calendarId, setCalendarId] = useState(calendars[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
 
   async function submit(event: FormEvent) {
@@ -35,7 +40,7 @@ export function CalendarEntryModal({
         time: time || null,
         recurrence,
         notes: notes.trim() || null
-      });
+      }, calendarId);
     } finally {
       setSaving(false);
     }
@@ -60,6 +65,24 @@ export function CalendarEntryModal({
               <Bell size={16} /> Recordatorio
             </button>
           </div>
+          {calendars.length > 1 && (
+            <fieldset className="calendar-choice">
+              <legend>Calendario</legend>
+              <div className="edit-option-chips">
+                {calendars.map((calendar) => (
+                  <button
+                    type="button"
+                    key={calendar.id}
+                    className={calendarId === calendar.id ? "selected" : ""}
+                    onClick={() => setCalendarId(calendar.id)}
+                    aria-pressed={calendarId === calendar.id}
+                  >
+                    <i className={`chip-dot dot-${calendar.color}`} /> {calendar.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
           <label>Título
             <input
               value={title}

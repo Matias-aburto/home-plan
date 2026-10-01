@@ -38,11 +38,18 @@ describe("calendarios personales", () => {
     await other.agent.post(`/api/calendars/${calendar.id}/events`).send({ title: "X", kind: "event", date: "2026-02-10" }).expect(404);
   });
 
-  it("valida nombre, ícono y color", async () => {
+  it("es uno por espacio, con nombre por defecto", async () => {
     const { agent } = await loginAgent();
-    await agent.post("/api/calendars").send({ name: " " }).expect(400);
-    const calendar = await createCalendar(agent, { icon: "no-existe", color: "fucsia" });
-    expect(calendar).toMatchObject({ icon: "calendar", color: "blue" });
+    const calendar = (await agent.post("/api/calendars").send({ icon: "no-existe", color: "fucsia" }).expect(201)).body;
+    expect(calendar).toMatchObject({ name: "Calendario", icon: "calendar", color: "blue" });
+    await agent.post("/api/calendars").send({ name: "Otro" }).expect(409);
+    await agent.delete(`/api/calendars/${calendar.id}`).expect(204);
+    await agent.post("/api/calendars").send({ name: "Otro" }).expect(201);
+  });
+
+  it("valida ícono, color y nombre al editar", async () => {
+    const { agent } = await loginAgent();
+    const calendar = await createCalendar(agent);
     await agent.patch(`/api/calendars/${calendar.id}`).send({ icon: "no-existe" }).expect(400);
     await agent.patch(`/api/calendars/${calendar.id}`).send({ name: "" }).expect(400);
   });
@@ -105,6 +112,27 @@ describe("eventos", () => {
   });
 });
 
+describe("agenda", () => {
+  it("junta el calendario personal y los de mis grupos, sin los ajenos", async () => {
+    const ana = await loginAgent();
+    const beto = await loginAgent();
+    const familyId = (await ana.agent.post("/api/families").send({ name: "Grupo" }).expect(201)).body.id;
+    await addMember(familyId, beto.user.id);
+    const personal = await createCalendar(ana.agent);
+    const group = await createCalendar(beto.agent, { familyId });
+    const betoPersonal = await createCalendar(beto.agent);
+    const event = { kind: "event", date: "2026-11-01" };
+    await ana.agent.post(`/api/calendars/${personal.id}/events`).send({ ...event, title: "Dentista" }).expect(201);
+    await beto.agent.post(`/api/calendars/${group.id}/events`).send({ ...event, title: "Asado" }).expect(201);
+    await beto.agent.post(`/api/calendars/${betoPersonal.id}/events`).send({ ...event, title: "Privado" }).expect(201);
+
+    const agenda = (await ana.agent.get("/api/calendars").expect(200)).body;
+    expect(agenda.calendars.map(({ id }: CalendarSummary) => id).sort()).toEqual([personal.id, group.id].sort());
+    expect(agenda.events.map(({ title, calendarId }: { title: string; calendarId: string }) => [title, calendarId]).sort())
+      .toEqual([["Asado", group.id], ["Dentista", personal.id]]);
+  });
+});
+
 describe("calendarios de grupo", () => {
   let owner: Session;
   let admin: Session;
@@ -122,7 +150,8 @@ describe("calendarios de grupo", () => {
     calendar = await createCalendar(member.agent, { familyId });
   });
 
-  it("cualquier miembro lo crea y todos lo ven; quien no es miembro no", async () => {
+  it("cualquier miembro lo agrega, una sola vez, y todos lo ven; quien no es miembro no", async () => {
+    await owner.agent.post("/api/calendars").send({ familyId }).expect(409);
     expect(calendar).toMatchObject({ familyId, ownerUserId: null, access: "editor" });
     expect((await visible(owner.agent)).find(({ id }) => id === calendar.id)?.access).toBe("owner");
     expect((await visible(admin.agent)).find(({ id }) => id === calendar.id)?.access).toBe("owner");

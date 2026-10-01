@@ -136,6 +136,14 @@ export type CalendarDetail = {
   events: CalendarEntry[];
 };
 
+// Evento con el calendario al que pertenece (en la agenda se mezclan varios).
+export type AgendaEntry = CalendarEntry & { calendarId: string };
+
+export type AgendaData = {
+  calendars: CalendarSummary[];
+  events: AgendaEntry[];
+};
+
 export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId" | "listId" | "calendarId">;
 export type SortMode = "custom" | "alpha";
 

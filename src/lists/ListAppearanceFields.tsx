@@ -1,21 +1,21 @@
 import { Check } from "lucide-react";
 import { listColorNames, listColors, listIcons, ListIcon } from "./listStyle";
 
-// Selector de ícono y color, compartido al crear y en los ajustes de listas y calendarios.
+// Selector de ícono y color, compartido al crear y en los ajustes de las listas. Sin onIconChange, solo el color.
 export function ListAppearanceFields({
   icon,
   color,
   onIconChange,
   onColorChange
 }: {
-  icon: string;
+  icon?: string;
   color: string;
-  onIconChange: (icon: string) => void;
+  onIconChange?: (icon: string) => void;
   onColorChange: (color: string) => void;
 }) {
   return (
     <>
-      <fieldset>
+      {onIconChange && <fieldset>
         <legend>Ícono</legend>
         <div className="icon-picker">
           {Object.keys(listIcons).map((name) => (
@@ -32,7 +32,7 @@ export function ListAppearanceFields({
             </button>
           ))}
         </div>
-      </fieldset>
+      </fieldset>}
       <fieldset>
         <legend>Color</legend>
         <div className="color-picker">

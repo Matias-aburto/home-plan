@@ -1,5 +1,8 @@
-import { Plus } from "lucide-react";
-import { Link } from "react-router";
+import { useState } from "react";
+import { CalendarPlus, Plus } from "lucide-react";
+import { Link, useNavigate } from "react-router";
+import { nextCalendarColor } from "../calendar/spaces";
+import { useMe } from "../data/MeProvider";
 import { ListIcon } from "../lists/listStyle";
 import type { CalendarSummary, ListSummary } from "../types";
 
@@ -7,18 +10,40 @@ export function pendingLabel(count: number) {
   return count ? `${count} pendiente${count === 1 ? "" : "s"}` : "Al día";
 }
 
-// Tarjetas de las listas y calendarios de un espacio (lo personal o un grupo), más la de crear.
+// Tarjetas de un espacio (lo personal o un grupo): sus listas, su calendario o la opción de agregarlo, y crear.
 export function SpaceCards({
+  familyId,
   lists,
-  calendars,
+  calendar,
   onCreate
 }: {
+  familyId: string | null;
   lists: ListSummary[];
-  calendars: CalendarSummary[];
+  calendar: CalendarSummary | null;
   onCreate: () => void;
 }) {
+  const { createCalendar, calendars } = useMe();
+  const navigate = useNavigate();
+  const [adding, setAdding] = useState(false);
+
+  async function addCalendar() {
+    setAdding(true);
+    try {
+      navigate(`/calendarios/${await createCalendar(nextCalendarColor(calendars), familyId)}`);
+    } finally {
+      setAdding(false);
+    }
+  }
+
   return (
     <div className="list-cards">
+      {calendar && (
+        <Link className="list-card" to={`/calendarios/${calendar.id}`}>
+          <ListIcon icon="calendar" color={calendar.color} size={20} />
+          <strong>Calendario</strong>
+          <small>Eventos y recordatorios</small>
+        </Link>
+      )}
       {lists.map((list) => (
         <Link key={list.id} className="list-card" to={`/listas/${list.id}`}>
           <ListIcon icon={list.icon} color={list.color} size={20} />
@@ -26,17 +51,16 @@ export function SpaceCards({
           <small>{pendingLabel(list.pendingCount)}</small>
         </Link>
       ))}
-      {calendars.map((calendar) => (
-        <Link key={calendar.id} className="list-card" to={`/calendarios/${calendar.id}`}>
-          <ListIcon icon={calendar.icon} color={calendar.color} size={20} />
-          <strong>{calendar.name}</strong>
-          <small>Calendario</small>
-        </Link>
-      ))}
       <button className="list-card new" onClick={onCreate}>
         <Plus size={20} />
-        <strong>Nuevo</strong>
+        <strong>Nueva lista</strong>
       </button>
+      {!calendar && (
+        <button className="list-card new" onClick={() => void addCalendar()} disabled={adding}>
+          <CalendarPlus size={20} />
+          <strong>Agregar calendario</strong>
+        </button>
+      )}
     </div>
   );
 }

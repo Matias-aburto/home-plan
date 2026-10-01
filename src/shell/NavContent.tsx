@@ -33,7 +33,7 @@ function SpaceSection({
 }) {
   const { reorderLists } = useMe();
   const [showArchived, setShowArchived] = useState(false);
-  const empty = space.lists.length === 0 && space.calendars.length === 0;
+  const empty = space.lists.length === 0 && !space.calendar;
 
   return (
     <div className="nav-section">
@@ -45,12 +45,15 @@ function SpaceSection({
           </button>
         )}
       </div>
+      {space.calendar && (
+        <EntryLink entry={space.calendar} active={activeKey === space.calendar.key} onNavigate={onNavigate} />
+      )}
       {empty && space.canCreate ? (
         <button className="nav-item nav-new-list" onClick={() => onCreate(space.familyId)}>
           <span className="nav-icon"><Plus size={17} /></span>
           <span>Crear nuevo</span>
         </button>
-      ) : (
+      ) : space.lists.length > 0 && (
         <SortableList
           items={space.lists.map((entry) => ({ ...entry, id: entry.key }))}
           onReorder={(ids) => void reorderLists(ids)}
@@ -62,7 +65,7 @@ function SpaceSection({
           )}
         />
       )}
-      {[...space.calendars, ...space.links].map((entry) => (
+      {space.links.map((entry) => (
         <EntryLink key={entry.key} entry={entry} active={activeKey === entry.key} onNavigate={onNavigate} />
       ))}
       {space.archived.length > 0 && (
@@ -87,9 +90,14 @@ function SpaceSection({
 
 // Menú completo con cada espacio. Se usa en la barra lateral y en el cajón móvil.
 export function NavContent({ onNavigate, onCreate }: { onNavigate?: () => void; onCreate: (familyId: string | null) => void }) {
-  const { spaces, activeKey, families } = useNavigation();
+  const { spaces, activeKey, families, agenda } = useNavigation();
   return (
     <>
+      {agenda && (
+        <div className="nav-section nav-agenda">
+          <EntryLink entry={agenda} active={activeKey === "agenda"} onNavigate={onNavigate} />
+        </div>
+      )}
       {spaces.map((space) => (
         <SpaceSection key={space.key} space={space} activeKey={activeKey} onNavigate={onNavigate} onCreate={onCreate} />
       ))}

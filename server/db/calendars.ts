@@ -43,6 +43,14 @@ export async function visibleCalendars(userId: string): Promise<CalendarSummary[
   }));
 }
 
+// Cada espacio (lo personal de alguien o un grupo) tiene como máximo un calendario.
+export async function calendarForSpace(userId: string, familyId: string | null) {
+  const result = await db.execute(familyId
+    ? { sql: "SELECT id FROM calendars WHERE family_id = ?", args: [familyId] }
+    : { sql: "SELECT id FROM calendars WHERE owner_user_id = ?", args: [userId] });
+  return result.rows[0] ? String(result.rows[0].id) : null;
+}
+
 export async function createCalendar(userId: string, familyId: string | null, input: CalendarInput, requestedId?: string) {
   const id = requestedId || nanoid();
   const now = new Date().toISOString();
@@ -95,6 +103,18 @@ function toEvent(row: Record<string, unknown>): CalendarEntry {
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at)
   };
+}
+
+// Eventos de varios calendarios juntos, para la agenda.
+export async function agendaEvents(calendarIds: string[]) {
+  if (!calendarIds.length) return [];
+  const result = await db.execute({
+    sql: `SELECT ${eventColumns}, calendar_id FROM calendar_events
+      WHERE calendar_id IN (${calendarIds.map(() => "?").join(", ")})
+      ORDER BY event_date, event_time, created_at`,
+    args: calendarIds
+  });
+  return result.rows.map((row) => ({ ...toEvent(row), calendarId: String(row.calendar_id) }));
 }
 
 export async function listEvents(calendarId: string) {

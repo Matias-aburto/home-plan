@@ -157,6 +157,9 @@ export async function migrate() {
     )`,
     "CREATE INDEX IF NOT EXISTS idx_calendars_owner ON calendars(owner_user_id)",
     "CREATE INDEX IF NOT EXISTS idx_calendars_family ON calendars(family_id)",
+    // Un calendario por espacio.
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_calendars_owner ON calendars(owner_user_id) WHERE owner_user_id IS NOT NULL",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_calendars_family ON calendars(family_id) WHERE family_id IS NOT NULL",
     `CREATE TABLE IF NOT EXISTS calendar_events (
       id TEXT PRIMARY KEY,
       calendar_id TEXT NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,

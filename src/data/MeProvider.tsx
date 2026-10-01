@@ -23,7 +23,8 @@ type MeContext = {
   updateList: (listId: string, changes: Changes) => Promise<void>;
   deleteList: (listId: string) => Promise<void>;
   reorderLists: (ids: string[]) => Promise<void>;
-  createCalendar: (input: AppearanceInput, familyId?: string | null) => Promise<string>;
+  // El calendario es un complemento del espacio: uno por espacio, sin nombre propio.
+  createCalendar: (color: string, familyId?: string | null) => Promise<string>;
   updateCalendar: (calendarId: string, changes: Changes) => Promise<void>;
   deleteCalendar: (calendarId: string) => Promise<void>;
   // Actualiza solo en este dispositivo (por ejemplo, el contador de pendientes tras editar ítems).
@@ -162,7 +163,8 @@ export function MeProvider({ user, children }: { user: User; children: ReactNode
     store({ lists: listsRef.current.map((list) => list.id === listId ? { ...list, ...changes } : list) });
   }, [store]);
 
-  const createCalendar = useCallback(async (input: AppearanceInput, familyId: string | null = null) => {
+  const createCalendar = useCallback(async (color: string, familyId: string | null = null) => {
+    const input = { name: "Calendario", icon: "calendar", color };
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const role = familyId ? familiesRef.current.find((family) => family.id === familyId)?.role : null;

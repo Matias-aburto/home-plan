@@ -1,33 +1,40 @@
-import { useMemo, useState } from "react";
-import { ArchiveRestore, ChevronLeft, ChevronRight, Plus, Settings2 } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { CalendarEntryModal } from "./CalendarEntryModal";
 import { CalendarEntryRow } from "./CalendarEntryRow";
 import { compactDateFormatter, dateKey, dayFormatter, entriesOnDate, localDate, monthFormatter, occurrenceKey } from "../lib/calendar";
-import { ListIcon } from "../lists/listStyle";
-import type { CalendarEntry, CalendarSummary, OfflineMutation } from "../types";
+import type { AgendaEntry, CalendarEntry, OfflineMutation } from "../types";
+
+// Un calendario donde se pueden agregar eventos. Con más de uno (la agenda), cada evento muestra de cuál es.
+export type CalendarOption = { id: string; label: string; color: string };
 
 export function CalendarSection({
-  calendar,
+  heading,
+  actions,
+  banner,
+  calendars,
+  combined = calendars.length > 1,
   entries,
-  onMutate,
-  onOpenSettings,
-  onRestore
+  onMutate
 }: {
-  calendar: CalendarSummary;
-  entries: CalendarEntry[];
-  onMutate: (entries: CalendarEntry[], operation: OfflineMutation) => Promise<void>;
-  onOpenSettings: () => void;
-  onRestore: () => void;
+  heading: ReactNode;
+  actions?: ReactNode;
+  banner?: ReactNode;
+  calendars: CalendarOption[];
+  // Si se mezclan varios calendarios: cada evento muestra de cuál es.
+  combined?: boolean;
+  entries: AgendaEntry[];
+  onMutate: (entries: AgendaEntry[], operation: OfflineMutation, calendarId: string) => Promise<void>;
 }) {
-  const eventsUrl = `/api/calendars/${calendar.id}/events`;
   const today = dateKey(new Date());
   const [month, setMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [selectedDate, setSelectedDate] = useState(today);
-  const [editing, setEditing] = useState<CalendarEntry | null>(null);
+  const [editing, setEditing] = useState<AgendaEntry | null>(null);
   const [creating, setCreating] = useState(false);
+  const calendarOf = (entry: AgendaEntry) => calendars.find(({ id }) => id === entry.calendarId);
 
   const days = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -61,8 +68,8 @@ export function CalendarSection({
       return key && localDate(key) <= end ? [{ entry, key }] : [];
     }).sort((a, b) =>
       a.key.localeCompare(b.key) || (a.entry.time || "99:99").localeCompare(b.entry.time || "99:99")
-    ).slice(0, 6);
-  }, [entries, today]);
+    ).slice(0, combined ? 8 : 6);
+  }, [entries, today, combined]);
 
   function changeMonth(offset: number) {
     const next = new Date(month.getFullYear(), month.getMonth() + offset, 1);
@@ -77,69 +84,50 @@ export function CalendarSection({
     }
   }
 
-  async function saveEntry(data: Omit<CalendarEntry, "id" | "createdAt" | "updatedAt">) {
+  async function saveEntry(data: Omit<CalendarEntry, "id" | "createdAt" | "updatedAt">, calendarId: string) {
     const now = new Date().toISOString();
     if (editing) {
       const updated = { ...editing, ...data, updatedAt: now };
       await onMutate(entries.map((entry) => entry.id === editing.id ? updated : entry), {
-        url: `${eventsUrl}/${editing.id}`,
+        url: `/api/calendars/${editing.calendarId}/events/${editing.id}`,
         method: "PATCH",
         body: data
-      });
+      }, editing.calendarId);
     } else {
-      const entry: CalendarEntry = {
-        id: crypto.randomUUID(),
-        ...data,
-        createdAt: now,
-        updatedAt: now
-      };
+      const entry: AgendaEntry = { id: crypto.randomUUID(), calendarId, ...data, createdAt: now, updatedAt: now };
       await onMutate([...entries, entry], {
-        url: eventsUrl,
+        url: `/api/calendars/${calendarId}/events`,
         method: "POST",
         body: { id: entry.id, ...data }
-      });
+      }, calendarId);
     }
     setCreating(false);
     setEditing(null);
   }
 
-  async function deleteEntry(entry: CalendarEntry) {
+  async function deleteEntry(entry: AgendaEntry) {
     await onMutate(entries.filter(({ id }) => id !== entry.id), {
-      url: `${eventsUrl}/${entry.id}`,
+      url: `/api/calendars/${entry.calendarId}/events/${entry.id}`,
       method: "DELETE"
-    });
+    }, entry.calendarId);
     setEditing(null);
   }
 
   return (
     <section className="content calendar-content">
       <div className="content-heading calendar-heading">
-        <div className="title-only list-title">
-          <ListIcon icon={calendar.icon} color={calendar.color} size={20} />
-          <h2>{calendar.name}</h2>
-        </div>
+        {heading}
         <div className="list-heading-actions">
-          {calendar.access === "owner" && (
-            <button className="manage-locations-button" onClick={onOpenSettings} aria-label="Ajustes del calendario">
-              <Settings2 size={17} />
+          {actions}
+          {calendars.length > 0 && (
+            <button className="calendar-add-button" onClick={() => setCreating(true)}>
+              <Plus size={18} /> Nuevo
             </button>
           )}
-          <button className="calendar-add-button" onClick={() => setCreating(true)}>
-            <Plus size={18} /> Nuevo
-          </button>
         </div>
       </div>
 
-      {calendar.archivedAt && (
-        <div className="archived-banner">
-          <span>Este calendario está archivado.</span>
-          {calendar.access === "owner" && (
-            <button onClick={onRestore}>
-              <ArchiveRestore size={16} /> Restaurar
-            </button>
-          )}
-        </div>
-      )}
+      {banner}
 
       <div className="calendar-layout">
         <div className="calendar-card">
@@ -165,7 +153,7 @@ export function CalendarSection({
                   <span>{day.getDate()}</span>
                   <i className="calendar-dots">
                     {dayEntries.slice(0, 3).map((entry) => (
-                      <b key={entry.id} className={entry.kind} />
+                      <b key={entry.id} className={combined ? `dot-${calendarOf(entry)?.color ?? "neutral"}` : entry.kind} />
                     ))}
                   </i>
                 </button>
@@ -177,11 +165,18 @@ export function CalendarSection({
         <aside className="calendar-agenda">
           <div className="agenda-heading">
             <span>{selectedDate === today ? "Hoy" : dayFormatter.format(localDate(selectedDate))}</span>
-            <button onClick={() => setCreating(true)} aria-label="Agregar en este día"><Plus size={17} /></button>
+            {calendars.length > 0 && (
+              <button onClick={() => setCreating(true)} aria-label="Agregar en este día"><Plus size={17} /></button>
+            )}
           </div>
           <div className="agenda-list">
             {selectedEntries.length ? selectedEntries.map((entry) => (
-              <CalendarEntryRow key={entry.id} entry={entry} onEdit={setEditing} />
+              <CalendarEntryRow
+                key={entry.id}
+                entry={entry}
+                source={combined ? calendarOf(entry) : undefined}
+                onEdit={(selected) => setEditing(selected as AgendaEntry)}
+              />
             )) : (
               <div className="agenda-empty">Nada agendado para este día.</div>
             )}
@@ -197,6 +192,7 @@ export function CalendarSection({
               }}>
                 <time>{compactDateFormatter.format(localDate(key))}</time>
                 <span>{entry.title}</span>
+                {combined && <i className={`upcoming-source dot-${calendarOf(entry)?.color ?? "neutral"}`} title={calendarOf(entry)?.label} />}
                 {entry.time && <small>{entry.time}</small>}
               </button>
             )) : <span className="agenda-empty">No hay eventos próximos.</span>}
@@ -208,6 +204,7 @@ export function CalendarSection({
         <CalendarEntryModal
           entry={editing}
           defaultDate={selectedDate}
+          calendars={editing ? [] : calendars}
           onSave={saveEntry}
           onDelete={editing ? () => deleteEntry(editing) : undefined}
           onClose={() => {

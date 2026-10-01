@@ -2,6 +2,8 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import { calendarAccess, hasAccess } from "../auth/access.js";
 import {
   addEvent,
+  agendaEvents,
+  calendarForSpace,
   createCalendar,
   deleteCalendar,
   deleteEvent,
@@ -9,7 +11,8 @@ import {
   getEvent,
   listEvents,
   updateCalendar,
-  updateEvent
+  updateEvent,
+  visibleCalendars
 } from "../db/calendars.js";
 import { getMembership } from "../db/families.js";
 import type { CalendarRecord, CalendarSummary } from "../db/types.js";
@@ -47,11 +50,17 @@ function requireCalendarAccess(required: "editor" | "owner") {
   };
 }
 
+// Agenda: los calendarios que veo (el personal y los de mis grupos) con todos sus eventos.
+calendarsRouter.get("/", async (_request, response) => {
+  const calendars = await visibleCalendars(currentUser(response).id);
+  return response.json({ calendars, events: await agendaEvents(calendars.map(({ id }) => id)) });
+});
+
+// El calendario es un complemento de cada espacio: se agrega una vez, sin nombre propio obligatorio.
 calendarsRouter.post("/", async (request, response) => {
   const user = currentUser(response);
   const body = request.body as Record<string, unknown>;
-  const name = capitalizeFirst(cleanText(body.name, 40));
-  if (!name) return response.status(400).json({ message: "Escribe un nombre para el calendario." });
+  const name = capitalizeFirst(cleanText(body.name, 40)) || "Calendario";
   const familyId = cleanText(body.familyId, 20).toUpperCase() || null;
   if (familyId && !(await getMembership(familyId, user.id))) return response.status(404).json({ message: "No encontramos ese grupo." });
   const requestedId = cleanText(body.id, 50) || undefined;
@@ -60,6 +69,9 @@ calendarsRouter.post("/", async (request, response) => {
     const access = existing ? await calendarAccess(user, existing) : "none";
     if (existing && access !== "none") return response.status(201).json({ ...existing, access });
     if (existing) return response.status(409).json({ message: "Ese identificador ya está en uso." });
+  }
+  if (await calendarForSpace(user.id, familyId)) {
+    return response.status(409).json({ message: familyId ? "El grupo ya tiene calendario." : "Ya tienes un calendario personal." });
   }
   const calendar = await createCalendar(user.id, familyId, {
     name,

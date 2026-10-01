@@ -23,7 +23,7 @@ export function occurrenceKey(entry: CalendarEntry, year: number) {
   return dateKey(localDate(key)) === key ? key : null;
 }
 
-export function entriesOnDate(entries: CalendarEntry[], key: string) {
+export function entriesOnDate<T extends CalendarEntry>(entries: T[], key: string) {
   const year = Number(key.slice(0, 4));
   return entries
     .filter((entry) => occurrenceKey(entry, year) === key)

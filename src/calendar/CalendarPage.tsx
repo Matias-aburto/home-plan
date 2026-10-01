@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, Settings2 } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError, api } from "../api/client";
 import { Loading } from "../components/Loading";
 import { useMe } from "../data/MeProvider";
 import { hasPendingFor, mutate, onSyncEvent, syncEvents, type SyncedDetail } from "../data/sync";
+import { ListIcon } from "../lists/listStyle";
 import { cacheMeta, getCachedMeta } from "../offline";
-import type { CalendarDetail, CalendarEntry, OfflineMutation } from "../types";
+import type { AgendaEntry, CalendarDetail, OfflineMutation } from "../types";
 import { CalendarSection } from "./CalendarSection";
 import { CalendarSettingsModal } from "./CalendarSettingsModal";
+import { calendarOption, calendarSpaceName } from "./spaces";
 
 // La ruta monta una página nueva por calendario para no arrastrar estado entre calendarios.
 export function CalendarRoute() {
@@ -66,7 +68,7 @@ function CalendarPage({ calendarId }: { calendarId: string }) {
     };
   }, [calendarId, load]);
 
-  // El calendario recién creado sin conexión aún no existe en el servidor: se arma desde el menú.
+  // El calendario recién agregado sin conexión aún no existe en el servidor: se arma desde el menú.
   const summary = me.calendars.find((calendar) => calendar.id === calendarId);
   useEffect(() => {
     if (!detail && status === "offline" && summary) {
@@ -82,7 +84,7 @@ function CalendarPage({ calendarId }: { calendarId: string }) {
           <div><CircleAlert size={28} /></div>
           <h3>{status === "missing" ? "No encontramos este calendario" : "Sin conexión"}</h3>
           <p>{status === "missing"
-            ? "Puede que lo hayan eliminado o que ya no tengas acceso."
+            ? "Puede que lo hayan quitado o que ya no tengas acceso."
             : "Necesitas conectarte una vez para ver este calendario sin internet."}</p>
           <Link className="secondary-button empty-state-action" to="/">Volver al inicio</Link>
         </div>
@@ -91,10 +93,12 @@ function CalendarPage({ calendarId }: { calendarId: string }) {
   }
   if (!detail) return <Loading />;
 
-  // El menú (MeProvider) tiene los cambios de nombre, color o archivado más recientes.
+  // El menú (MeProvider) tiene el color más reciente.
   const calendar = summary ? { ...detail.calendar, ...summary } : detail.calendar;
+  const spaceName = calendarSpaceName(calendar, me.families);
+  const entries: AgendaEntry[] = detail.events.map((event) => ({ ...event, calendarId }));
 
-  async function apply(events: CalendarEntry[], operation: OfflineMutation) {
+  async function apply(events: AgendaEntry[], operation: OfflineMutation) {
     const next = { calendar, events };
     setDetail(next);
     await cacheMeta(cacheId, next);
@@ -104,14 +108,31 @@ function CalendarPage({ calendarId }: { calendarId: string }) {
   return (
     <>
       <CalendarSection
-        calendar={calendar}
-        entries={detail.events}
+        heading={(
+          <div className="title-only list-title">
+            <ListIcon icon="calendar" color={calendar.color} size={20} />
+            <div>
+              <span className="space-eyebrow">{spaceName}</span>
+              <h2>Calendario</h2>
+            </div>
+          </div>
+        )}
+        actions={calendar.access === "owner" && (
+          <button className="manage-locations-button" onClick={() => setSettingsOpen(true)} aria-label="Ajustes del calendario">
+            <Settings2 size={17} />
+          </button>
+        )}
+        calendars={[calendarOption(calendar, me.families)]}
+        entries={entries}
         onMutate={apply}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onRestore={() => void me.updateCalendar(calendarId, { archived: false })}
       />
       {settingsOpen && (
-        <CalendarSettingsModal calendar={calendar} eventCount={detail.events.length} onClose={() => setSettingsOpen(false)} />
+        <CalendarSettingsModal
+          calendar={calendar}
+          spaceName={spaceName}
+          eventCount={detail.events.length}
+          onClose={() => setSettingsOpen(false)}
+        />
       )}
     </>
   );
