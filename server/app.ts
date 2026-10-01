@@ -24,7 +24,7 @@ app.use("/api", requireUser);
 app.use("/api/me", meRouter);
 app.use("/api/realtime", realtimeRouter);
 app.use("/api/lists", listsRouter);
-app.use("/api/families/:id/calendar", calendarRouter);
+app.use("/api/calendar", calendarRouter);
 app.use("/api/families/:id/invitations", familyInvitationsRouter);
 app.use("/api/invitations", invitationsRouter);
 app.use("/api/families", familiesRouter);

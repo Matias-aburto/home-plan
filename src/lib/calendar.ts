@@ -1,4 +1,4 @@
-import type { CalendarEntry } from "../types";
+import type { CalendarEvent } from "../types";
 
 export const monthFormatter = new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric" });
 export const dayFormatter = new Intl.DateTimeFormat("es-CL", { weekday: "long", day: "numeric", month: "long" });
@@ -16,14 +16,14 @@ export function localDate(key: string) {
   return new Date(year, month - 1, day);
 }
 
-export function occurrenceKey(entry: CalendarEntry, year: number) {
+export function occurrenceKey(entry: CalendarEvent, year: number) {
   if (entry.recurrence === "none") return entry.date;
   const [, month, day] = entry.date.split("-");
   const key = `${year}-${month}-${day}`;
   return dateKey(localDate(key)) === key ? key : null;
 }
 
-export function entriesOnDate(entries: CalendarEntry[], key: string) {
+export function entriesOnDate<T extends CalendarEvent>(entries: T[], key: string) {
   const year = Number(key.slice(0, 4));
   return entries
     .filter((entry) => occurrenceKey(entry, year) === key)

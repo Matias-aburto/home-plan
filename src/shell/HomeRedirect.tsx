@@ -12,6 +12,7 @@ export function HomeRedirect() {
   const lastPath = localStorage.getItem(lastPathKey)?.replace(/^\/familias\//, "/grupos/") ?? null;
   const [, section, id] = lastPath?.split("/") ?? [];
   if (lastPath && section === "listas" && lists.some((list) => list.id === id)) return <Navigate to={lastPath} replace />;
+  if (lastPath === "/calendario") return <Navigate to={lastPath} replace />;
   if (lastPath && section === "grupos" && families.some((family) => family.id === id)) return <Navigate to={lastPath} replace />;
 
   const firstList = lists.find((list) => !list.archivedAt);

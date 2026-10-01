@@ -2,7 +2,7 @@ import { nanoid } from "nanoid";
 import { db, text, value } from "./client.js";
 import type { ListItem } from "./types.js";
 
-const columns = `id, title, completed, position, location_id, assignee_user_id, created_by,
+const columns = `id, title, completed, position, created_by,
   created_at, updated_at, completed_at, archived_at`;
 
 function toItem(row: Record<string, unknown>): ListItem {
@@ -11,8 +11,6 @@ function toItem(row: Record<string, unknown>): ListItem {
     title: String(row.title),
     completed: Boolean(row.completed),
     position: Number(row.position || 0),
-    locationId: text(row.location_id),
-    assigneeUserId: text(row.assignee_user_id),
     createdBy: text(row.created_by),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -51,7 +49,7 @@ async function nextItemPosition(listId: string) {
 // Los ítems nuevos quedan arriba. Si el id ya existe (reenvío de la cola offline) devuelve el existente.
 export async function addListItem(
   listId: string,
-  input: { title: string; locationId: string | null; assigneeUserId: string | null; createdBy: string },
+  input: { title: string; createdBy: string },
   requestedId?: string
 ) {
   const existing = requestedId ? await getListItem(listId, requestedId) : null;
@@ -62,8 +60,6 @@ export async function addListItem(
     title: input.title,
     completed: false,
     position: await nextItemPosition(listId),
-    locationId: input.locationId,
-    assigneeUserId: input.assigneeUserId,
     createdBy: input.createdBy,
     createdAt: now,
     updatedAt: now,
@@ -72,12 +68,9 @@ export async function addListItem(
   };
   await db.execute({
     sql: `INSERT OR IGNORE INTO list_items
-      (id, list_id, title, completed, position, location_id, assignee_user_id, created_by, created_at, updated_at)
-      VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      item.id, listId, item.title, item.position, value(item.locationId), value(item.assigneeUserId),
-      item.createdBy, now, now
-    ]
+      (id, list_id, title, completed, position, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, 0, ?, ?, ?, ?)`,
+    args: [item.id, listId, item.title, item.position, item.createdBy, now, now]
   });
   return item;
 }
@@ -86,7 +79,7 @@ export async function addListItem(
 export async function updateListItem(
   listId: string,
   itemId: string,
-  changes: { title?: string; completed?: boolean; locationId?: string | null; assigneeUserId?: string | null }
+  changes: { title?: string; completed?: boolean }
 ) {
   const current = await getListItem(listId, itemId);
   if (!current) return null;
@@ -96,15 +89,9 @@ export async function updateListItem(
     ? changes.completed === true && !current.completed ? now : current.completedAt ?? now
     : null;
   await db.execute({
-    sql: `UPDATE list_items SET title = ?, completed = ?, location_id = ?, assignee_user_id = ?,
-      updated_at = ?, completed_at = ?, archived_at = NULL WHERE id = ? AND list_id = ?`,
-    args: [
-      changes.title ?? current.title,
-      completed ? 1 : 0,
-      value(changes.locationId === undefined ? current.locationId : changes.locationId),
-      value(changes.assigneeUserId === undefined ? current.assigneeUserId : changes.assigneeUserId),
-      now, value(completedAt), itemId, listId
-    ]
+    sql: `UPDATE list_items SET title = ?, completed = ?, updated_at = ?, completed_at = ?, archived_at = NULL
+      WHERE id = ? AND list_id = ?`,
+    args: [changes.title ?? current.title, completed ? 1 : 0, now, value(completedAt), itemId, listId]
   });
   if (changes.completed !== undefined) await archiveOlderItems(listId, now);
   return getListItem(listId, itemId);

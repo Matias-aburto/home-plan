@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Download, LogOut, MonitorSmartphone, X } from "lucide-react";
 import type { User } from "../types";
 
@@ -39,7 +40,8 @@ export function AccountMenu({
       <button className="account-button" onClick={() => setOpen(true)} aria-label={`Cuenta de ${user.name}`}>
         <UserAvatar user={user} />
       </button>
-      {open && (
+      {/* En <body>: dentro del header (que usa backdrop-filter) el fondo fijo quedaría limitado al header. */}
+      {open && createPortal(
         <div className="modal-backdrop" onMouseDown={() => setOpen(false)}>
           <section className="account-modal animate-in" onMouseDown={(event) => event.stopPropagation()}>
             <header>
@@ -68,7 +70,8 @@ export function AccountMenu({
             </div>
             <p>Al cerrar sesión se borran de este dispositivo los datos guardados y los cambios sin sincronizar.</p>
           </section>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

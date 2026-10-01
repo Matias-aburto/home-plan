@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { CalendarEntry } from "../types";
+import type { CalendarEvent } from "../types";
 import { dateKey, entriesOnDate, localDate, occurrenceKey } from "./calendar";
 
-function entry(overrides: Partial<CalendarEntry>): CalendarEntry {
+function entry(overrides: Partial<CalendarEvent>): CalendarEvent {
   return {
     id: "e",
     title: "Evento",
-    kind: "event",
+    familyId: null,
+    createdBy: null,
     date: "2026-03-10",
     time: null,
     recurrence: "none",

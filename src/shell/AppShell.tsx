@@ -7,7 +7,7 @@ import { useConnection } from "../data/ConnectionProvider";
 import { useMe } from "../data/MeProvider";
 import { Loading } from "../components/Loading";
 import { useFamilyDetail } from "../family/useFamilyDetail";
-import { NewListModal } from "../lists/NewListModal";
+import { CreateModal } from "../create/CreateModal";
 import type { User } from "../types";
 import { InstallPrompt } from "./InstallPrompt";
 import { NavContent } from "./NavContent";
@@ -30,20 +30,22 @@ export function AppShell({
   const { pathname } = useLocation();
   const { notice, dismissNotice } = useConnection();
   const { invitations, loaded } = useMe();
-  const { activeSpace, activeKey } = useNavigation();
+  const { activeSpace, activeKey, calendar, onCalendar } = useNavigation();
   const { detail: familyDetail } = useFamilyDetail(activeSpace.familyId);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // undefined: cerrado; null: lista personal; string: lista de esa familia.
-  const [newListFamily, setNewListFamily] = useState<string | null | undefined>(undefined);
+  // undefined: cerrado; null: crear en lo personal; string: crear en ese grupo.
+  const [createIn, setCreateIn] = useState<string | null | undefined>(undefined);
 
   // Al volver a abrir la app se retoma la última lista o sección.
   useEffect(() => {
-    if (pathname.startsWith("/listas/") || pathname.startsWith("/grupos/")) localStorage.setItem(lastPathKey, pathname);
+    if (/^\/(listas\/|grupos\/|calendario$)/.test(pathname)) localStorage.setItem(lastPathKey, pathname);
   }, [pathname]);
 
   // En móvil la barra inferior muestra las primeras entradas del espacio actual y el menú completo.
-  const barEntries = [...activeSpace.lists, ...activeSpace.links.slice(0, 1)].slice(0, 3);
-  const members = familyDetail?.members ?? [];
+  // El calendario siempre tiene su lugar.
+  const barEntries = [calendar, ...activeSpace.lists].slice(0, 3);
+  // Los demás miembros del grupo: el usuario ya aparece en su botón de cuenta.
+  const members = (familyDetail?.members ?? []).filter(({ userId }) => userId !== user.id);
   if (!loaded) return <Loading />;
 
   return (
@@ -53,16 +55,17 @@ export function AppShell({
           <div className="small-brand-mark"><BrandIcon /></div>
           <div>
             <span>{appName}</span>
-            <h1>{activeSpace.title}</h1>
+            <h1>{onCalendar ? "Calendario" : activeSpace.title}</h1>
           </div>
         </Link>
         <div className="header-actions">
           <SyncStatus />
-          {activeSpace.familyId && members.length > 0 && (
+          {!onCalendar && activeSpace.familyId && members.length > 0 && (
             <Link
               className="member-avatars"
               to={`/grupos/${activeSpace.familyId}/ajustes`}
-              aria-label={`Miembros: ${members.map(({ name }) => name).join(", ")}`}
+              aria-label={`Otros miembros: ${members.map(({ name }) => name).join(", ")}`}
+              title={members.map(({ name }) => name).join(", ")}
             >
               {members.slice(0, 3).map((member) => (
                 <UserAvatar
@@ -94,9 +97,11 @@ export function AppShell({
 
       <div className="dashboard">
         <aside className="sidebar">
-          <NavContent onNewList={setNewListFamily} />
+          <NavContent onCreate={setCreateIn} />
         </aside>
-        <Outlet />
+        <div className="dashboard-main">
+          <Outlet />
+        </div>
       </div>
 
       <nav className="mobile-nav" aria-label="Navegación">
@@ -113,7 +118,7 @@ export function AppShell({
           </Link>
         ))}
         {barEntries.length < 3 && activeSpace.canCreate && (
-          <button className="nav-item" onClick={() => setNewListFamily(activeSpace.familyId)}>
+          <button className="nav-item" onClick={() => setCreateIn(activeSpace.familyId)}>
             <Plus size={20} />
             <span>Nueva lista</span>
           </button>
@@ -133,16 +138,16 @@ export function AppShell({
             </header>
             <NavContent
               onNavigate={() => setDrawerOpen(false)}
-              onNewList={(familyId) => {
+              onCreate={(familyId) => {
                 setDrawerOpen(false);
-                setNewListFamily(familyId);
+                setCreateIn(familyId);
               }}
             />
           </section>
         </div>
       )}
-      {newListFamily !== undefined && (
-        <NewListModal familyId={newListFamily} onClose={() => setNewListFamily(undefined)} />
+      {createIn !== undefined && (
+        <CreateModal familyId={createIn} onClose={() => setCreateIn(undefined)} />
       )}
     </main>
   );

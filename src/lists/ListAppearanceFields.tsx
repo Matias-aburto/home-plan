@@ -1,21 +1,21 @@
 import { Check } from "lucide-react";
-import { listColorNames, listColors, listIconNames, listIcons, ListIcon } from "./listStyle";
+import { listColorNames, listColors, listIcons, ListIcon } from "./listStyle";
 
-// Selector de ícono y color, compartido por "Nueva lista" y los ajustes de la lista.
+// Selector de ícono y color, compartido al crear y en los ajustes de las listas. Sin onIconChange, solo el color.
 export function ListAppearanceFields({
   icon,
   color,
   onIconChange,
   onColorChange
 }: {
-  icon: string;
+  icon?: string;
   color: string;
-  onIconChange: (icon: string) => void;
+  onIconChange?: (icon: string) => void;
   onColorChange: (color: string) => void;
 }) {
   return (
     <>
-      <fieldset>
+      {onIconChange && <fieldset>
         <legend>Ícono</legend>
         <div className="icon-picker">
           {Object.keys(listIcons).map((name) => (
@@ -24,15 +24,15 @@ export function ListAppearanceFields({
               key={name}
               className={icon === name ? "selected" : ""}
               onClick={() => onIconChange(name)}
-              aria-label={listIconNames[name]}
-              title={listIconNames[name]}
+              aria-label={listIcons[name].label}
+              title={listIcons[name].label}
               aria-pressed={icon === name}
             >
               <ListIcon icon={name} color={icon === name ? color : "neutral"} size={17} />
             </button>
           ))}
         </div>
-      </fieldset>
+      </fieldset>}
       <fieldset>
         <legend>Color</legend>
         <div className="color-picker">

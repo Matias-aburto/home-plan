@@ -12,7 +12,7 @@ beforeAll(async () => {
 });
 
 async function createList(agent: Agent, body: Record<string, unknown> = {}) {
-  return (await agent.post("/api/lists").send({ name: "Compartida", kind: "shopping", ...body }).expect(201)).body as ListSummary;
+  return (await agent.post("/api/lists").send({ name: "Compartida", ...body }).expect(201)).body as ListSummary;
 }
 
 // Invita y acepta por la bandeja; devuelve la sesión de quien recibió.
@@ -54,7 +54,6 @@ describe("compartir una lista personal", () => {
     const detail = (await viewer.agent.get(`/api/lists/${listId}`).expect(200)).body;
     await viewer.agent.post(`/api/lists/${listId}/items`).send({ title: "No" }).expect(403);
     await viewer.agent.patch(`/api/lists/${listId}/items/${detail.items[0].id}`).send({ completed: true }).expect(403);
-    await viewer.agent.post(`/api/lists/${listId}/locations`).send({ name: "X" }).expect(403);
     await viewer.agent.put(`/api/lists/${listId}/prefs`).send({ sort: "alpha" }).expect(200);
   });
 
@@ -103,7 +102,8 @@ describe("listas de familia compartidas fuera de la familia", () => {
     const owner = await loginAgent();
     const outsider = await loginAgent();
     const familyId = (await owner.agent.post("/api/families").send({ name: "F" }).expect(201)).body.id;
-    const [shopping, tasks] = (await visible(owner.agent)).filter((list) => list.familyId === familyId);
+    const shopping = await createList(owner.agent, { familyId });
+    const tasks = await createList(owner.agent, { name: "Otra", familyId });
     await share(owner.agent, shopping.id, outsider, "editor");
     await outsider.agent.post(`/api/lists/${shopping.id}/items`).send({ title: "Leche" }).expect(201);
     await outsider.agent.get(`/api/lists/${tasks.id}`).expect(404);
@@ -112,7 +112,7 @@ describe("listas de familia compartidas fuera de la familia", () => {
 });
 
 describe("mover listas", () => {
-  it("de personal a una familia: la ven sus miembros y se limpian ubicaciones", async () => {
+  it("de personal a un grupo: la ven sus miembros y quienes la tenían compartida", async () => {
     const owner = await loginAgent();
     const member = await loginAgent();
     const guest = await loginAgent();
@@ -121,8 +121,7 @@ describe("mover listas", () => {
     await member.agent.post(`/api/invitations/${invitation.body.invitation.id}/accept`).expect(200);
 
     const list = await createList(owner.agent);
-    const place = (await owner.agent.post(`/api/lists/${list.id}/locations`).send({ name: "Casa" })).body;
-    await owner.agent.post(`/api/lists/${list.id}/items`).send({ title: "Café", locationId: place.id });
+    await owner.agent.post(`/api/lists/${list.id}/items`).send({ title: "Café" });
     await share(owner.agent, list.id, guest, "viewer");
 
     await owner.agent.post(`/api/lists/${list.id}/move`).send({ familyId: "NOEXISTE" }).expect(404);
@@ -130,7 +129,7 @@ describe("mover listas", () => {
     expect(moved.body).toMatchObject({ familyId, ownerUserId: null, access: "owner" });
     expect((await visible(member.agent)).find(({ id }) => id === list.id)?.access).toBe("editor");
     expect((await visible(guest.agent)).find(({ id }) => id === list.id)?.access).toBe("viewer");
-    expect((await owner.agent.get(`/api/lists/${list.id}`)).body.items[0].locationId).toBeNull();
+    expect((await owner.agent.get(`/api/lists/${list.id}`)).body.items).toHaveLength(1);
     await owner.agent.post(`/api/lists/${list.id}/move`).send({ familyId }).expect(400);
   });
 
@@ -142,7 +141,7 @@ describe("mover listas", () => {
       sql: "INSERT INTO family_members (family_id, user_id, role, joined_at) VALUES (?, ?, 'member', ?)",
       args: [familyId, member.user.id, new Date().toISOString()]
     });
-    const [shopping] = (await visible(owner.agent)).filter((list) => list.familyId === familyId);
+    const shopping = await createList(owner.agent, { familyId });
     await member.agent.post(`/api/lists/${shopping.id}/move`).send({ familyId: null }).expect(403);
     const moved = await owner.agent.post(`/api/lists/${shopping.id}/move`).send({ familyId: null }).expect(200);
     expect(moved.body).toMatchObject({ familyId: null, ownerUserId: owner.user.id });

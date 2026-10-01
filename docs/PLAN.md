@@ -4,6 +4,15 @@ Estado: **publicado**. Etapas 0A a 7 completadas.
 
 > **Decisión final (antes de publicar):** se parte de cero. Se quitaron la migración de las familias por código, su reclamo con el código familiar y la vinculación de responsables antiguos (descritos en las etapas 3 y 7). Las tablas del modelo anterior (`shopping_items`, `household_tasks`, `locations`, `learned_products`) ya no se crean ni se usan; en la base de producción quedan intactas, sin uso, y se pueden borrar más adelante.
 
+> **Simplificación (después de publicar):** la app pasó a ser de listas y calendarios.
+> - Un solo tipo de lista (en la base, `kind = 'checklist'`). Se quitaron las ubicaciones, las sugerencias de productos y los responsables; las columnas `location_id` y `assignee_user_id` quedan en `NULL` y las tablas `places` y `learned_names` sin uso.
+> - **Un solo calendario** por persona (`/calendario`) con sus eventos personales y los de sus grupos. Cada evento es de un espacio (personal o un grupo) y se mueve entre espacios al editarlo; sacarlo de un grupo solo lo puede hacer quien lo creó o quien administra el grupo. Un solo tipo: evento (sin notificaciones no había diferencia con "recordatorio"). Por dentro, cada espacio tiene un calendario interno (`calendars`, uno por espacio) que se crea con su primer evento. API en `/api/calendar`.
+> - El color de cada espacio en el calendario es una preferencia de cada persona (`user_space_colors`); sin elegir, se asigna por posición. Así el color personal y el de un grupo nunca chocan por decisión de otro.
+> - Los grupos se crean vacíos. El calendario único de cada grupo con eventos pasó a ser un calendario "Calendario" del grupo (migración `group-calendars`, una sola vez, registrada en `app_migrations`); `calendar_entries` queda como respaldo.
+> - La portada de cada grupo muestra sus próximos eventos. `/grupos/:id/calendario` abre el calendario mostrando solo ese grupo.
+>
+> Lo que sigue describe el diseño original; donde no coincide, vale esta nota.
+
 ## 1. Objetivo
 
 Pasar de un modelo "código familiar = acceso a todo" a un modelo basado en **cuentas de usuario**:

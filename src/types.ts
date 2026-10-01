@@ -1,26 +1,21 @@
 import type { QueuedOperation } from "./offline";
 
-export type Location = {
+// Evento del calendario. Es de un espacio: personal (familyId null) o de un grupo.
+export type CalendarEvent = {
   id: string;
-  name: string;
-};
-
-export type Suggestion = {
-  name: string;
-  category: string;
-};
-
-export type CalendarEntry = {
-  id: string;
+  familyId: string | null;
   title: string;
-  kind: "event" | "reminder";
   date: string;
   time: string | null;
   recurrence: "none" | "yearly";
   notes: string | null;
+  createdBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
+
+// Lo que se edita de un evento.
+export type CalendarEventInput = Pick<CalendarEvent, "title" | "date" | "time" | "recurrence" | "notes">;
 
 export type User = {
   id: string;
@@ -53,10 +48,8 @@ export type FamilyMember = {
 export type FamilyDetail = {
   family: FamilySummary;
   members: FamilyMember[];
-  locations: Location[];
 };
 
-export type ListKind = "shopping" | "tasks" | "checklist";
 export type ListAccess = "viewer" | "editor" | "owner";
 
 export type ListSummary = {
@@ -64,7 +57,6 @@ export type ListSummary = {
   ownerUserId: string | null;
   familyId: string | null;
   name: string;
-  kind: ListKind;
   icon: string;
   color: string;
   createdBy: string;
@@ -82,17 +74,12 @@ export type ListItem = {
   title: string;
   completed: boolean;
   position: number;
-  locationId: string | null;
-  assigneeUserId: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
   archivedAt: string | null;
 };
-
-// Quienes pueden ser responsables de una tarea (miembros de la familia de la lista).
-export type Assignable = Pick<FamilyMember, "userId" | "name" | "color" | "avatarUrl">;
 
 export type SharedMember = {
   userId: string;
@@ -106,9 +93,7 @@ export type SharedMember = {
 export type ListDetail = {
   list: ListSummary;
   items: ListItem[];
-  locations: Location[];
-  members: Assignable[];
-  // Personas con quienes está compartida la lista fuera de su dueño o familia.
+  // Personas con quienes está compartida la lista fuera de su dueño o grupo.
   sharedWith: SharedMember[];
 };
 
@@ -132,10 +117,12 @@ export type Me = {
   user: User;
   families: FamilySummary[];
   lists: ListSummary[];
+  // Color con que el usuario ve cada espacio en el calendario ("personal" o id del grupo).
+  spaceColors: Record<string, string>;
   invitations: Invitation[];
 };
 
-export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId" | "listId">;
+export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId" | "listId" | "calendarId">;
 export type SortMode = "custom" | "alpha";
 
 export type BeforeInstallPromptEvent = Event & {

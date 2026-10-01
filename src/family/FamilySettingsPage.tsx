@@ -190,7 +190,7 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
         {!isOwner && (
           confirming === "leave" ? (
             <div className="delete-confirm">
-              <span>¿Salir de {family.name}? Dejarás de ver sus listas y su calendario.</span>
+              <span>¿Salir de {family.name}? Dejarás de ver sus listas y calendarios.</span>
               <div>
                 <button onClick={() => setConfirming(null)}>Cancelar</button>
                 <button
@@ -209,7 +209,7 @@ function FamilySettingsPage({ familyId }: { familyId: string }) {
         {isOwner && (
           confirming === "delete" ? (
             <div className="delete-confirm">
-              <span>¿Eliminar {family.name}? Se borran sus listas, ítems y calendario para todos. No se puede deshacer.</span>
+              <span>¿Eliminar {family.name}? Se borran sus listas y calendarios para todos. No se puede deshacer.</span>
               <div>
                 <button onClick={() => setConfirming(null)}>Cancelar</button>
                 <button

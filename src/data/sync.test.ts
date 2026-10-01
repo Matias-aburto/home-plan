@@ -94,7 +94,7 @@ describe("cola offline", () => {
     expect(await getPendingOperations()).toEqual([]);
     // El 404 no se cuenta: suele ser algo que otra persona ya borró.
     expect(dropped).toEqual([1]);
-    expect(synced).toEqual([{ familyIds: [], listIds: ["a", "b", "c"] }]);
+    expect(synced).toEqual([{ familyIds: [], calendarIds: [], listIds: ["a", "b", "c"] }]);
   });
 
   it("envía lo que se agrega mientras la cola se está enviando", async () => {

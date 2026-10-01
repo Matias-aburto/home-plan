@@ -7,6 +7,9 @@ export function useInstallApp() {
   const [showGuide, setShowGuide] = useState(false);
   const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent)
     || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  // En escritorio (mouse y sin pantalla táctil) no se ofrece: instalar ahí aporta poco y el navegador
+  // ya muestra su propio ícono de instalar en la barra de direcciones.
+  const isDesktop = window.matchMedia("(hover: hover) and (pointer: fine)").matches && !isIos;
 
   useEffect(() => {
     const standalone = window.matchMedia("(display-mode: standalone)").matches
@@ -14,6 +17,7 @@ export function useInstallApp() {
     setInstalled(standalone);
 
     const onBeforeInstall = (event: Event) => {
+      if (isDesktop) return;
       event.preventDefault();
       setPrompt(event as BeforeInstallPromptEvent);
     };
@@ -28,7 +32,7 @@ export function useInstallApp() {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
       window.removeEventListener("appinstalled", onInstalled);
     };
-  }, []);
+  }, [isDesktop]);
 
   async function install() {
     if (prompt) {
@@ -41,7 +45,7 @@ export function useInstallApp() {
   }
 
   return {
-    canInstall: !installed && (Boolean(prompt) || isIos),
+    canInstall: !isDesktop && !installed && (Boolean(prompt) || isIos),
     install,
     showGuide,
     closeGuide: () => setShowGuide(false)

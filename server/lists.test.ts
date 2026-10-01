@@ -3,11 +3,10 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "./db/migrations.js";
 import { loginAgent } from "./test/helpers.js";
 
-type ListSummary = { id: string; name: string; kind: string; icon: string; color: string; access: string; pendingCount: number; sort: string; archivedAt: string | null };
+type ListSummary = { id: string; name: string; icon: string; color: string; access: string; pendingCount: number; sort: string; archivedAt: string | null };
 type ListDetail = {
   list: ListSummary;
-  items: { id: string; title: string; completed: boolean; locationId: string | null; archivedAt: string | null }[];
-  locations: { id: string; name: string }[];
+  items: { id: string; title: string; completed: boolean; archivedAt: string | null }[];
 };
 
 let ana: Agent;
@@ -20,7 +19,7 @@ beforeAll(async () => {
 });
 
 async function createList(agent: Agent, body: Record<string, unknown> = {}) {
-  const response = await agent.post("/api/lists").send({ name: "Supermercado", kind: "shopping", ...body }).expect(201);
+  const response = await agent.post("/api/lists").send({ name: "Supermercado", ...body }).expect(201);
   return response.body as ListSummary;
 }
 
@@ -29,24 +28,23 @@ async function detail(agent: Agent, listId: string) {
 }
 
 describe("crear y gestionar listas", () => {
-  it("crea con valores por defecto según el tipo", async () => {
+  it("crea con valores por defecto", async () => {
     const list = await createList(ana, { name: "  compras del mes " });
-    expect(list).toMatchObject({ name: "Compras del mes", kind: "shopping", icon: "shopping-basket", color: "green", access: "owner", pendingCount: 0, sort: "custom" });
-    const checklist = await createList(ana, { name: "Maleta", kind: "checklist", icon: "plane", color: "blue" });
-    expect(checklist).toMatchObject({ icon: "plane", color: "blue" });
+    expect(list).toMatchObject({ name: "Compras del mes", icon: "list-checks", color: "green", access: "owner", pendingCount: 0, sort: "custom" });
+    const custom = await createList(ana, { name: "Maleta", icon: "luggage", color: "blue" });
+    expect(custom).toMatchObject({ icon: "luggage", color: "blue" });
   });
 
-  it("valida nombre, tipo, ícono y color", async () => {
-    await ana.post("/api/lists").send({ name: " ", kind: "shopping" }).expect(400);
-    await ana.post("/api/lists").send({ name: "X", kind: "otro" }).expect(400);
+  it("valida nombre, ícono y color", async () => {
+    await ana.post("/api/lists").send({ name: " " }).expect(400);
     const list = await createList(ana, { icon: "no-existe", color: "fucsia" });
-    expect(list).toMatchObject({ icon: "shopping-basket", color: "green" });
+    expect(list).toMatchObject({ icon: "list-checks", color: "green" });
     await ana.patch(`/api/lists/${list.id}`).send({ icon: "no-existe" }).expect(400);
     await ana.patch(`/api/lists/${list.id}`).send({ name: "" }).expect(400);
   });
 
   it("es idempotente con el id del cliente y no deja reutilizar ids ajenos", async () => {
-    const body = { id: "lista-cliente-1", name: "Offline", kind: "tasks" };
+    const body = { id: "lista-cliente-1", name: "Offline" };
     await ana.post("/api/lists").send(body).expect(201);
     await ana.post("/api/lists").send(body).expect(201);
     await beto.post("/api/lists").send(body).expect(409);
@@ -97,8 +95,6 @@ describe("permisos", () => {
     await beto.post(`/api/lists/${list.id}/items`).send({ title: "Intruso" }).expect(404);
     await beto.patch(`/api/lists/${list.id}/items/${item.id}`).send({ completed: true }).expect(404);
     await beto.delete(`/api/lists/${list.id}/items/${item.id}`).expect(404);
-    await beto.get(`/api/lists/${list.id}/suggestions`).query({ q: "pa" }).expect(404);
-    await beto.post(`/api/lists/${list.id}/locations`).send({ name: "Casa" }).expect(404);
     const me = (await beto.get("/api/me")).body;
     expect(me.lists.some((candidate: ListSummary) => candidate.id === list.id)).toBe(false);
     expect((await detail(ana, list.id)).items).toHaveLength(1);
@@ -111,7 +107,7 @@ describe("permisos", () => {
 
 describe("ítems", () => {
   it("agrega arriba, completa, edita, reordena y elimina", async () => {
-    const list = await createList(ana, { kind: "tasks" });
+    const list = await createList(ana);
     const ids: string[] = [];
     for (const title of ["uno", "dos", "tres"]) {
       ids.push((await ana.post(`/api/lists/${list.id}/items`).send({ title }).expect(201)).body.id);
@@ -143,7 +139,7 @@ describe("ítems", () => {
   });
 
   it("archiva los completados más allá de los 5 más recientes", async () => {
-    const list = await createList(ana, { kind: "checklist" });
+    const list = await createList(ana);
     for (let index = 0; index < 7; index += 1) {
       const item = (await ana.post(`/api/lists/${list.id}/items`).send({ title: `Ítem ${index}` })).body;
       await ana.patch(`/api/lists/${list.id}/items/${item.id}`).send({ completed: true });
@@ -151,59 +147,12 @@ describe("ítems", () => {
     const items = (await detail(ana, list.id)).items;
     expect(items.filter(({ archivedAt }) => archivedAt === null)).toHaveLength(5);
   });
-});
 
-describe("ubicaciones", () => {
-  it("son del dueño y se comparten entre sus listas", async () => {
-    const shopping = await createList(ana);
-    const tasks = await createList(ana, { kind: "tasks" });
-    const place = (await ana.post(`/api/lists/${shopping.id}/locations`).send({ name: "Parcela" }).expect(201)).body;
-    await ana.post(`/api/lists/${tasks.id}/locations`).send({ name: "parcela" }).expect(409);
-    expect((await detail(ana, tasks.id)).locations.map(({ name }) => name)).toContain("Parcela");
-
-    const item = (await ana.post(`/api/lists/${tasks.id}/items`).send({ title: "Podar", locationId: place.id })).body;
-    expect(item.locationId).toBe(place.id);
-
-    await ana.patch(`/api/lists/${tasks.id}/locations/${place.id}`).send({ name: "Campo" }).expect(200);
-    await ana.delete(`/api/lists/${tasks.id}/locations/${place.id}`).expect(204);
-    expect((await detail(ana, tasks.id)).items[0].locationId).toBeNull();
-  });
-
-  it("no acepta ubicaciones de otro dueño", async () => {
-    const betoList = await createList(beto);
-    const betoPlace = (await beto.post(`/api/lists/${betoList.id}/locations`).send({ name: "Oficina" })).body;
-    const anaList = await createList(ana);
-    const item = (await ana.post(`/api/lists/${anaList.id}/items`).send({ title: "Café", locationId: betoPlace.id })).body;
-    expect(item.locationId).toBeNull();
-    await ana.delete(`/api/lists/${anaList.id}/locations/${betoPlace.id}`).expect(404);
-  });
-
-  it("las checklist no usan ubicaciones", async () => {
-    const shopping = await createList(ana);
-    const place = (await ana.post(`/api/lists/${shopping.id}/locations`).send({ name: "Playa" })).body;
-    const checklist = await createList(ana, { kind: "checklist" });
-    const item = (await ana.post(`/api/lists/${checklist.id}/items`).send({ title: "Toalla", locationId: place.id })).body;
-    expect(item.locationId).toBeNull();
-    expect((await detail(ana, checklist.id)).locations).toEqual([]);
-  });
-});
-
-describe("sugerencias", () => {
-  it("combina el catálogo con lo usado por el mismo dueño, sin mezclar usuarios", async () => {
-    const { agent: carla } = await loginAgent();
-    const list = await createList(carla);
-    await carla.post(`/api/lists/${list.id}/items`).send({ title: "Lechuga hidropónica" });
-    const names = (await carla.get(`/api/lists/${list.id}/suggestions`).query({ q: "lech" })).body.map((s: { name: string }) => s.name);
-    expect(names[0]).toBe("Lechuga hidropónica");
-    expect(names).toContain("Leche");
-
-    const betoList = await createList(beto);
-    const betoNames = (await beto.get(`/api/lists/${betoList.id}/suggestions`).query({ q: "lech" })).body.map((s: { name: string }) => s.name);
-    expect(betoNames).not.toContain("Lechuga hidropónica");
-  });
-
-  it("solo sugiere en listas de compras", async () => {
-    const tasks = await createList(ana, { kind: "tasks" });
-    expect((await ana.get(`/api/lists/${tasks.id}/suggestions`).query({ q: "lech" })).body).toEqual([]);
+  it("ignora los campos que ya no existen", async () => {
+    const list = await createList(ana);
+    const item = (await ana.post(`/api/lists/${list.id}/items`).send({ title: "Toalla", locationId: "x", assigneeUserId: "y" }).expect(201)).body;
+    expect(item).not.toHaveProperty("locationId");
+    expect(item).not.toHaveProperty("assigneeUserId");
+    await ana.get(`/api/lists/${list.id}/suggestions`).query({ q: "lech" }).expect(404);
   });
 });

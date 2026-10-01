@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { CalendarDays, CircleAlert, Plus, Settings2 } from "lucide-react";
+import { CircleAlert, Settings2, UserPlus } from "lucide-react";
 import { Link, useParams } from "react-router";
+import { UpcomingEvents } from "../calendar/UpcomingEvents";
+import { CreateModal } from "../create/CreateModal";
+import { SpaceCards } from "../create/SpaceCards";
 import { useMe } from "../data/MeProvider";
-import { NewListModal } from "../lists/NewListModal";
-import { ListIcon, listKinds } from "../lists/listStyle";
 
-// Portada de una familia: sus listas, el calendario y los ajustes.
+// Portada de un grupo: sus listas, sus próximos eventos y los ajustes.
 export function FamilyHomePage() {
   const { familyId = "" } = useParams();
   const { families, lists, loaded } = useMe();
@@ -27,39 +28,32 @@ export function FamilyHomePage() {
   if (!family) return null;
 
   const familyLists = lists.filter((list) => list.familyId === family.id && !list.archivedAt);
+  const empty = familyLists.length === 0;
+  const canInvite = family.role === "owner" || family.role === "admin";
   return (
     <section className="content">
       <div className="content-heading">
         <div className="title-only"><h2>{family.name}</h2></div>
         <span>{family.memberCount} {family.memberCount === 1 ? "miembro" : "miembros"}</span>
       </div>
-      <div className="list-cards">
-        {familyLists.map((list) => (
-          <Link key={list.id} className="list-card" to={`/listas/${list.id}`}>
-            <ListIcon icon={list.icon} color={list.color} size={20} />
-            <strong>{list.name}</strong>
-            <small>
-              {listKinds.find((option) => option.kind === list.kind)?.label}
-              {" · "}
-              {list.pendingCount ? `${list.pendingCount} pendiente${list.pendingCount === 1 ? "" : "s"}` : "Al día"}
-            </small>
+      {empty && (
+        <p className="space-intro">
+          Todavía no hay listas en el grupo. Lo que crees aquí lo ven y editan todos sus miembros.
+        </p>
+      )}
+      <SpaceCards lists={familyLists} onCreate={() => setCreating(true)} />
+      <UpcomingEvents familyId={family.id} />
+      <div className="space-links">
+        {canInvite && family.memberCount === 1 && (
+          <Link className="text-button family-settings-link" to={`/grupos/${family.id}/ajustes`}>
+            <UserPlus size={15} /> Invitar personas
           </Link>
-        ))}
-        <Link className="list-card" to={`/grupos/${family.id}/calendario`}>
-          <span className="list-icon list-color-neutral" aria-hidden="true"><CalendarDays size={20} /></span>
-          <strong>Calendario</strong>
-          <small>Eventos y recordatorios</small>
+        )}
+        <Link className="text-button family-settings-link" to={`/grupos/${family.id}/ajustes`}>
+          <Settings2 size={15} /> Ajustes del grupo
         </Link>
-        <button className="list-card new" onClick={() => setCreating(true)}>
-          <Plus size={20} />
-          <strong>Nueva lista</strong>
-        </button>
       </div>
-      <Link className="text-button family-settings-link" to={`/grupos/${family.id}/ajustes`}>
-        <Settings2 size={15} /> Ajustes del grupo
-      </Link>
-      {creating && <NewListModal familyId={family.id} onClose={() => setCreating(false)} />}
+      {creating && <CreateModal familyId={family.id} onClose={() => setCreating(false)} />}
     </section>
   );
 }
-

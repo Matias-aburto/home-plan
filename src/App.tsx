@@ -1,11 +1,11 @@
-import { Navigate, Route, Routes, useLocation } from "react-router";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router";
 import { useSession } from "./auth/AuthProvider";
+import { CalendarPage } from "./calendar/CalendarPage";
 import { LoginPage } from "./auth/LoginPage";
 import { IosInstallGuide } from "./components/IosInstallGuide";
 import { Loading } from "./components/Loading";
 import { ConnectionProvider } from "./data/ConnectionProvider";
 import { MeProvider, useMe } from "./data/MeProvider";
-import { FamilyCalendarRoute } from "./family/FamilyCalendarPage";
 import { FamilyHomePage } from "./family/FamilyHomePage";
 import { FamilySettingsRoute } from "./family/FamilySettingsPage";
 import { NewFamilyPage } from "./family/NewFamilyPage";
@@ -68,7 +68,10 @@ function SignedInApp({
           <Route path="invitaciones" element={<InvitationsPage />} />
           <Route path="listas/:listId" element={<ListRoute />} />
           <Route path="grupos/:familyId" element={<FamilyHomePage />} />
-          <Route path="grupos/:familyId/calendario" element={<FamilyCalendarRoute />} />
+          <Route path="calendario" element={<CalendarPage />} />
+          <Route path="agenda" element={<Navigate to="/calendario" replace />} />
+          <Route path="calendarios/*" element={<Navigate to="/calendario" replace />} />
+          <Route path="grupos/:familyId/calendario" element={<GroupCalendarRedirect />} />
           <Route path="grupos/:familyId/ajustes" element={<FamilySettingsRoute />} />
           <Route path="familias/*" element={<FamiliesRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -76,6 +79,12 @@ function SignedInApp({
       </Routes>
     </ConnectionProvider>
   );
+}
+
+// El calendario de cada grupo pasó a ser el calendario único, mostrando solo ese grupo.
+function GroupCalendarRedirect() {
+  const { familyId = "" } = useParams();
+  return <Navigate to={`/calendario?espacio=${familyId.toUpperCase()}`} replace />;
 }
 
 // Los enlaces de antes del cambio a grupos (/familias/...) siguen funcionando.

@@ -41,12 +41,11 @@ describe("base de producción anterior", () => {
     await agent.post("/api/families/claim").send({ code: "CASA" }).expect(404);
   });
 
-  it("se pueden crear familias y listas nuevas", async () => {
+  it("se pueden crear grupos, listas y eventos nuevos", async () => {
     const { agent } = await loginAgent();
     const family = (await agent.post("/api/families").send({ name: "Nueva" }).expect(201)).body;
-    const lists = (await agent.get("/api/me")).body.lists.filter((list: { familyId: string }) => list.familyId === family.id);
-    expect(lists).toHaveLength(2);
-    await agent.post(`/api/lists/${lists[0].id}/items`).send({ title: "Pan" }).expect(201);
-    await agent.post(`/api/families/${family.id}/calendar`).send({ title: "Evento", kind: "event", date: "2026-11-01" }).expect(201);
+    const list = (await agent.post("/api/lists").send({ name: "Compras", familyId: family.id }).expect(201)).body;
+    await agent.post(`/api/lists/${list.id}/items`).send({ title: "Pan" }).expect(201);
+    await agent.post("/api/calendar/events").send({ title: "Evento", date: "2026-11-01", familyId: family.id }).expect(201);
   });
 });

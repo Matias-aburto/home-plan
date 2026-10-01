@@ -10,7 +10,6 @@ import {
   setMemberRole,
   transferOwnership
 } from "../db/families.js";
-import { listPlaces } from "../db/places.js";
 import { currentRole, requireMember, type FamilyParams } from "../http/family.js";
 import { currentUser } from "../http/session.js";
 import { cleanText, oneOf } from "../http/validation.js";
@@ -39,12 +38,11 @@ familiesRouter.post("/", async (request, response) => {
 
 familiesRouter.get<FamilyParams>("/:id", requireMember(), async (request, response) => {
   const familyId = request.params.id.toUpperCase();
-  const [summary, members, locations] = await Promise.all([
+  const [summary, members] = await Promise.all([
     familySummary(familyId, currentUser(response).id),
-    listMembers(familyId),
-    listPlaces({ ownerUserId: null, familyId })
+    listMembers(familyId)
   ]);
-  return response.json({ family: summary, members, locations });
+  return response.json({ family: summary, members });
 });
 
 familiesRouter.patch<FamilyParams>("/:id", requireMember("admin"), async (request, response) => {

@@ -1,8 +1,5 @@
 import { Router } from "express";
 import { listAccess } from "../auth/access.js";
-import { baseCatalog } from "../catalog.js";
-import { normalizeText } from "../db/client.js";
-import { findLearnedNames, rememberName } from "../db/learnedNames.js";
 import {
   addListItem,
   deleteListItem,
@@ -19,7 +16,7 @@ import {
   setListSort,
   updateList
 } from "../db/lists.js";
-import { getMembership, listMembers } from "../db/families.js";
+import { getMembership } from "../db/families.js";
 import {
   createListInvitation,
   findUserIdByEmail,
@@ -34,9 +31,6 @@ import {
 } from "../db/listMembers.js";
 import { getUser } from "../db/users.js";
 import { notifyUserChanged } from "../realtime.js";
-import { addPlace, deletePlace, listPlaces, placeNameTaken, renamePlace, validPlaceId } from "../db/places.js";
-import { scopeOf } from "../db/scopes.js";
-import type { ListRecord } from "../db/types.js";
 import {
   broadcastList,
   currentAccess,
@@ -51,7 +45,6 @@ import {
   cleanText,
   listColors,
   listIcons,
-  listKinds,
   oneOf,
   readIdList,
   readSortMode
@@ -63,26 +56,11 @@ const invalidName = { message: "Escribe un nombre para la lista." };
 const missingTitle = { message: "Escribe un nombre para el ítem." };
 const itemNotFound = { message: "No encontramos ese ítem." };
 
-// Las listas de tipo checklist no usan ubicación.
-async function readLocation(list: ListRecord, input: unknown) {
-  if (list.kind === "checklist") return null;
-  return validPlaceId(scopeOf(list), cleanText(input, 30) || null);
-}
-
-// Solo las tareas de una familia tienen responsable, y debe ser miembro de esa familia.
-async function readAssignee(list: ListRecord, input: unknown) {
-  const userId = cleanText(input, 50);
-  if (list.kind !== "tasks" || !list.familyId || !userId) return null;
-  return await getMembership(list.familyId, userId) ? userId : null;
-}
-
 listsRouter.post("/", async (request, response) => {
   const user = currentUser(response);
   const body = request.body as Record<string, unknown>;
   const name = cleanText(body.name, 40);
-  const kind = oneOf(listKinds, body.kind);
   if (!name) return response.status(400).json(invalidName);
-  if (!kind) return response.status(400).json({ message: "Elige un tipo de lista." });
   const familyId = cleanText(body.familyId, 20).toUpperCase() || null;
   if (familyId && !(await getMembership(familyId, user.id))) {
     return response.status(404).json({ message: "No encontramos ese grupo." });
@@ -96,8 +74,7 @@ listsRouter.post("/", async (request, response) => {
   }
   const list = await createList(user.id, familyId, {
     name: capitalizeFirst(name),
-    kind,
-    icon: oneOf(listIcons, body.icon) || (kind === "shopping" ? "shopping-basket" : kind === "tasks" ? "list-todo" : "list-checks"),
+    icon: oneOf(listIcons, body.icon) || "list-checks",
     color: oneOf(listColors, body.color) || "green"
   }, requestedId);
   await broadcastList(list);
@@ -109,20 +86,12 @@ listsRouter.use("/:listId", loadList);
 
 listsRouter.get<ListParams>("/:listId", async (_request, response) => {
   const list = currentList(response);
-  const [summary, items, locations, members, sharedWith] = await Promise.all([
+  const [summary, items, sharedWith] = await Promise.all([
     listSummary(currentUser(response).id, list, currentAccess(response)),
     getListItems(list.id),
-    list.kind === "checklist" ? Promise.resolve([]) : listPlaces(scopeOf(list)),
-    list.familyId ? listMembers(list.familyId) : Promise.resolve([]),
     listSharedMembers(list.id)
   ]);
-  return response.json({
-    list: summary,
-    items,
-    locations,
-    members: members.map(({ userId, name, color, avatarUrl }) => ({ userId, name, color, avatarUrl })),
-    sharedWith
-  });
+  return response.json({ list: summary, items, sharedWith });
 });
 
 listsRouter.patch<ListParams>("/:listId", requireAccess("owner"), async (request, response) => {
@@ -229,44 +198,11 @@ listsRouter.put<ListParams>("/:listId/prefs", async (request, response) => {
   return response.json({ sort });
 });
 
-listsRouter.get<ListParams>("/:listId/suggestions", async (request, response) => {
-  const list = currentList(response);
-  const query = normalizeText(cleanText(request.query.q, 80));
-  if (list.kind !== "shopping" || query.length < 2) return response.json([]);
-
-  // El catálogo base suma menos que lo que ya se usó en listas del mismo dueño.
-  const suggestions = new Map<string, { name: string; category: string; score: number }>();
-  for (const product of baseCatalog) {
-    const key = normalizeText(product.name);
-    if (key.includes(query)) suggestions.set(key, { ...product, score: key.startsWith(query) ? 100 : 50 });
-  }
-  for (const product of await findLearnedNames(scopeOf(list), query)) {
-    const key = normalizeText(product.name);
-    suggestions.set(key, {
-      name: product.name,
-      category: suggestions.get(key)?.category || "Usado antes",
-      score: (key.startsWith(query) ? 200 : 150) + Math.min(product.uses, 20)
-    });
-  }
-  return response.json(
-    [...suggestions.values()]
-      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "es"))
-      .slice(0, 6)
-      .map(({ name, category }) => ({ name, category }))
-  );
-});
-
 listsRouter.post<ListParams>("/:listId/items", requireAccess("editor"), async (request, response) => {
   const list = currentList(response);
   const title = capitalizeFirst(cleanText(request.body.title, 100));
   if (!title) return response.status(400).json(missingTitle);
-  const item = await addListItem(list.id, {
-    title,
-    locationId: await readLocation(list, request.body.locationId),
-    assigneeUserId: await readAssignee(list, request.body.assigneeUserId),
-    createdBy: currentUser(response).id
-  }, cleanText(request.body.id, 50) || undefined);
-  if (list.kind === "shopping") await rememberName(scopeOf(list), title);
+  const item = await addListItem(list.id, { title, createdBy: currentUser(response).id }, cleanText(request.body.id, 50) || undefined);
   await broadcastList(list);
   return response.status(201).json(item);
 });
@@ -286,9 +222,7 @@ listsRouter.patch<ListParams & { itemId: string }>("/:listId/items/:itemId", req
   if (title === "") return response.status(400).json(missingTitle);
   const item = await updateListItem(list.id, request.params.itemId, {
     title,
-    completed: typeof body.completed === "boolean" ? body.completed : undefined,
-    locationId: "locationId" in body ? await readLocation(list, body.locationId) : undefined,
-    assigneeUserId: "assigneeUserId" in body ? await readAssignee(list, body.assigneeUserId) : undefined
+    completed: typeof body.completed === "boolean" ? body.completed : undefined
   });
   if (!item) return response.status(404).json(itemNotFound);
   await broadcastList(list);
@@ -298,40 +232,6 @@ listsRouter.patch<ListParams & { itemId: string }>("/:listId/items/:itemId", req
 listsRouter.delete<ListParams & { itemId: string }>("/:listId/items/:itemId", requireAccess("editor"), async (request, response) => {
   const list = currentList(response);
   await deleteListItem(list.id, request.params.itemId);
-  await broadcastList(list);
-  return response.status(204).send();
-});
-
-// Las ubicaciones son del dueño de la lista (persona o familia) y se comparten entre sus listas.
-listsRouter.post<ListParams>("/:listId/locations", requireAccess("editor"), async (request, response) => {
-  const list = currentList(response);
-  const name = cleanText(request.body.name, 30);
-  if (!name) return response.status(400).json({ message: "Escribe un nombre para la ubicación." });
-  if (await placeNameTaken(scopeOf(list), name)) return response.status(409).json({ message: "Esa ubicación ya existe." });
-  const place = await addPlace(scopeOf(list), name);
-  await broadcastList(list);
-  return response.status(201).json(place);
-});
-
-listsRouter.patch<ListParams & { locationId: string }>("/:listId/locations/:locationId", requireAccess("editor"), async (request, response) => {
-  const list = currentList(response);
-  const name = cleanText(request.body.name, 30);
-  if (!name) return response.status(400).json({ message: "Escribe un nombre para la ubicación." });
-  if (await placeNameTaken(scopeOf(list), name, request.params.locationId)) {
-    return response.status(409).json({ message: "Esa ubicación ya existe." });
-  }
-  if (!(await renamePlace(scopeOf(list), request.params.locationId, name))) {
-    return response.status(404).json({ message: "No encontramos esa ubicación." });
-  }
-  await broadcastList(list);
-  return response.json({ id: request.params.locationId, name });
-});
-
-listsRouter.delete<ListParams & { locationId: string }>("/:listId/locations/:locationId", requireAccess("editor"), async (request, response) => {
-  const list = currentList(response);
-  if (!(await deletePlace(scopeOf(list), request.params.locationId))) {
-    return response.status(404).json({ message: "No encontramos esa ubicación." });
-  }
   await broadcastList(list);
   return response.status(204).send();
 });

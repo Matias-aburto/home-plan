@@ -140,11 +140,106 @@ export async function migrate() {
       last_used_at TEXT NOT NULL,
       PRIMARY KEY (scope, name_key)
     )`,
-    "CREATE INDEX IF NOT EXISTS idx_calendar_family_date ON calendar_entries(family_id, event_date)"
+    "CREATE INDEX IF NOT EXISTS idx_calendar_family_date ON calendar_entries(family_id, event_date)",
+    // Calendarios: como las listas, su dueño es una persona o un grupo. Reemplazan a calendar_entries.
+    `CREATE TABLE IF NOT EXISTS calendars (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      color TEXT NOT NULL,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      archived_at TEXT,
+      CHECK ((owner_user_id IS NULL) <> (family_id IS NULL))
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_calendars_owner ON calendars(owner_user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_calendars_family ON calendars(family_id)",
+    // Un calendario por espacio.
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_calendars_owner ON calendars(owner_user_id) WHERE owner_user_id IS NOT NULL",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_calendars_family ON calendars(family_id) WHERE family_id IS NOT NULL",
+    `CREATE TABLE IF NOT EXISTS calendar_events (
+      id TEXT PRIMARY KEY,
+      calendar_id TEXT NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      event_date TEXT NOT NULL,
+      event_time TEXT,
+      recurrence TEXT NOT NULL DEFAULT 'none',
+      notes TEXT,
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON calendar_events(calendar_id, event_date)",
+    // Color con que cada persona ve cada espacio ("personal" o id del grupo) en el calendario.
+    `CREATE TABLE IF NOT EXISTS user_space_colors (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      space TEXT NOT NULL,
+      color TEXT NOT NULL,
+      PRIMARY KEY (user_id, space)
+    )`,
+    // Cambios de datos que se aplican una sola vez.
+    `CREATE TABLE IF NOT EXISTS app_migrations (
+      name TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL
+    )`
   ], "write");
 
   // Las bases creadas antes de las cuentas tienen `families` sin esta columna.
   await ensureColumn("families", "created_by", "TEXT REFERENCES users(id)");
+
+  await runOnce("single-list-kind", [
+    // Un solo tipo de lista: sin compras/tareas, ubicaciones ni responsables.
+    { sql: "UPDATE lists SET kind = 'checklist' WHERE kind <> 'checklist'", args: [] },
+    {
+      sql: "UPDATE list_items SET location_id = NULL, assignee_user_id = NULL WHERE location_id IS NOT NULL OR assignee_user_id IS NOT NULL",
+      args: []
+    }
+  ]);
+  await runOnce("group-calendars", await groupCalendarStatements());
+  // Evento y recordatorio se unifican: sin notificaciones, eran lo mismo.
+  await runOnce("single-event-kind", [{ sql: "UPDATE calendar_events SET kind = 'event' WHERE kind <> 'event'", args: [] }]);
+}
+
+// Aplica los cambios en una transacción y los registra, para que no se repitan en cada deploy.
+async function runOnce(name: string, statements: { sql: string; args: (string | null)[] }[]) {
+  const done = await db.execute({ sql: "SELECT 1 FROM app_migrations WHERE name = ?", args: [name] });
+  if (done.rows.length) return;
+  await db.batch([
+    ...statements,
+    { sql: "INSERT INTO app_migrations (name, applied_at) VALUES (?, ?)", args: [name, new Date().toISOString()] }
+  ], "write");
+}
+
+// Cada grupo que ya tenía eventos en su calendario único pasa a tener un calendario "Calendario" con ellos.
+async function groupCalendarStatements() {
+  const groups = await db.execute(`
+    SELECT f.id AS family_id,
+      (SELECT m.user_id FROM family_members m WHERE m.family_id = f.id ORDER BY m.role = 'owner' DESC, m.joined_at LIMIT 1) AS owner_id
+    FROM families f
+    WHERE EXISTS (SELECT 1 FROM calendar_entries e WHERE e.family_id = f.id)
+      AND EXISTS (SELECT 1 FROM family_members m WHERE m.family_id = f.id)`);
+  const now = new Date().toISOString();
+  return groups.rows.flatMap((row) => {
+    const calendarId = `cal-${String(row.family_id)}`;
+    return [
+      {
+        sql: `INSERT OR IGNORE INTO calendars (id, owner_user_id, family_id, name, icon, color, created_by, created_at, updated_at)
+          VALUES (?, NULL, ?, 'Calendario', 'calendar', 'blue', ?, ?, ?)`,
+        args: [calendarId, String(row.family_id), String(row.owner_id), now, now]
+      },
+      {
+        sql: `INSERT OR IGNORE INTO calendar_events
+          (id, calendar_id, title, kind, event_date, event_time, recurrence, notes, created_at, updated_at)
+          SELECT id, ?, title, kind, event_date, event_time, recurrence, notes, created_at, updated_at
+          FROM calendar_entries WHERE family_id = ?`,
+        args: [calendarId, String(row.family_id)]
+      }
+    ];
+  });
 }
 
 async function ensureColumn(table: string, column: string, definition: string) {

@@ -58,8 +58,8 @@ export function NewFamilyPage({
           <div className="form-icon"><Users /></div>
           <h1>Crea un grupo</h1>
           <p>
-            Para tu familia, tus amigos, un depto compartido o un viaje. Empieza con una lista de compras,
-            otra de tareas y un calendario. Después podrás invitar a los demás; para entrar a un grupo
+            Para tu familia, tus amigos, un depto compartido o un viaje. Empieza vacío: después creas
+            las listas y calendarios que necesiten e invitas a los demás. Para entrar a un grupo
             existente, pide que te inviten.
           </p>
           <form onSubmit={submit}>

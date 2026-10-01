@@ -3,13 +3,13 @@ import { enqueueOperation, getPendingOperations, removeOperation, type QueuedOpe
 
 // Eventos de la app para avisar que hay datos nuevos en el servidor.
 export const syncEvents = {
-  // La cola terminó de enviarse (detail: { familyIds, listIds }).
+  // La cola terminó de enviarse (detail: { familyIds, listIds, calendarIds }).
   synced: "casa:synced",
   // Cambió el número de operaciones pendientes (detail: número).
   pending: "casa:pending",
-  // Ably avisó cambios del usuario (detail: { listId? }).
+  // Ably avisó cambios en las listas o calendarios del usuario (detail: { listId?, calendarId? }).
   meChanged: "casa:me-changed",
-  // Ably avisó cambios en una familia (detail: { familyId, calendar }).
+  // Ably avisó cambios en un grupo: nombre o miembros (detail: { familyId }).
   familyChanged: "casa:family-changed",
   // Se recuperó la conexión: todo lo visible debe recargarse.
   resync: "casa:resync",
@@ -17,7 +17,7 @@ export const syncEvents = {
   dropped: "casa:dropped"
 } as const;
 
-export type SyncedDetail = { familyIds: string[]; listIds: string[] };
+export type SyncedDetail = { familyIds: string[]; listIds: string[]; calendarIds: string[] };
 export type Mutation = Omit<QueuedOperation, "id" | "createdAt">;
 
 function emit(name: string, detail?: unknown) {
@@ -50,6 +50,7 @@ export function flushQueue() {
 async function runFlush() {
   const familyIds = new Set<string>();
   const listIds = new Set<string>();
+  const calendarIds = new Set<string>();
   let dropped = 0;
   lastResult = "stopped";
   try {
@@ -72,14 +73,17 @@ async function runFlush() {
       await removeOperation(operation.id);
       if (operation.familyId) familyIds.add(operation.familyId);
       if (operation.listId) listIds.add(operation.listId);
+      if (operation.calendarId) calendarIds.add(operation.calendarId);
       await emitPending();
     }
   } finally {
     await emitPending();
     if (dropped) emit(syncEvents.dropped, dropped);
     // Lo enviado (o descartado) se recarga desde el servidor para reemplazar lo optimista.
-    if (familyIds.size || listIds.size) {
-      emit(syncEvents.synced, { familyIds: [...familyIds], listIds: [...listIds] } satisfies SyncedDetail);
+    if (familyIds.size || listIds.size || calendarIds.size) {
+      emit(syncEvents.synced, {
+        familyIds: [...familyIds], listIds: [...listIds], calendarIds: [...calendarIds]
+      } satisfies SyncedDetail);
     }
   }
 }
@@ -94,10 +98,11 @@ export async function mutate(operation: Mutation) {
   }
 }
 
-export async function hasPendingFor(filter: { familyId?: string; listId?: string }) {
+export async function hasPendingFor(filter: { familyId?: string; listId?: string; calendarId?: string }) {
   return (await getPendingOperations()).some((operation) =>
     (filter.familyId !== undefined && operation.familyId === filter.familyId)
     || (filter.listId !== undefined && operation.listId === filter.listId)
+    || (filter.calendarId !== undefined && operation.calendarId === filter.calendarId)
   );
 }
 

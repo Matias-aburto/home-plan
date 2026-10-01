@@ -1,13 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { Check, MapPin, Pencil, Trash2, UserRound } from "lucide-react";
+import { Check, Pencil, Trash2 } from "lucide-react";
 import { SwipeCard } from "../components/SwipeCard";
-import type { ListItem, Location } from "../types";
+import type { ListItem } from "../types";
 
 export function ListItemRow({
   item,
-  locations,
-  assigneeName = null,
-  completeLabel,
   readOnly = false,
   dragHandle,
   onToggle,
@@ -15,9 +12,6 @@ export function ListItemRow({
   onDelete
 }: {
   item: ListItem;
-  locations: Location[];
-  assigneeName?: string | null;
-  completeLabel: string;
   readOnly?: boolean;
   dragHandle?: ReactNode;
   onToggle: (item: ListItem) => Promise<void>;
@@ -27,7 +21,6 @@ export function ListItemRow({
   const [completing, setCompleting] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const location = locations.find(({ id }) => id === item.locationId);
 
   // Espera a que termine la animación antes de mover el ítem de sección.
   async function toggle() {
@@ -54,17 +47,11 @@ export function ListItemRow({
 
   const row = (
     <div className={`shopping-row ${item.completed ? "completed" : ""} ${completing ? "completing" : ""} ${restoring ? "restoring" : ""} ${deleting ? "deleting" : ""} ${readOnly ? "read-only" : ""}`}>
-      <button className="check-button" onClick={toggle} disabled={readOnly} aria-label={item.completed ? "Marcar pendiente" : completeLabel}>
+      <button className="check-button" onClick={toggle} disabled={readOnly} aria-label={item.completed ? "Marcar pendiente" : "Marcar listo"}>
         {(item.completed || completing) && <Check size={16} strokeWidth={3} />}
       </button>
       <button className="item-copy item-copy-button" onClick={toggle} disabled={readOnly}>
         <span>{item.title}</span>
-        {(assigneeName || location) && (
-          <small>
-            {assigneeName && <em><UserRound size={11} /> {assigneeName}</em>}
-            {location && <em><MapPin size={11} /> {location.name}</em>}
-          </small>
-        )}
       </button>
       {!readOnly && (
         <>
