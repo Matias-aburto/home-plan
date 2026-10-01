@@ -4,6 +4,14 @@ Estado: **publicado**. Etapas 0A a 7 completadas.
 
 > **Decisión final (antes de publicar):** se parte de cero. Se quitaron la migración de las familias por código, su reclamo con el código familiar y la vinculación de responsables antiguos (descritos en las etapas 3 y 7). Las tablas del modelo anterior (`shopping_items`, `household_tasks`, `locations`, `learned_products`) ya no se crean ni se usan; en la base de producción quedan intactas, sin uso, y se pueden borrar más adelante.
 
+> **Simplificación (después de publicar):** la app pasó a ser de listas y calendarios.
+> - Un solo tipo de lista (en la base, `kind = 'checklist'`). Se quitaron las ubicaciones, las sugerencias de productos y los responsables; las columnas `location_id` y `assignee_user_id` quedan en `NULL` y las tablas `places` y `learned_names` sin uso.
+> - Los calendarios son una entidad propia (`calendars` y `calendar_events`), personal o de un grupo, igual que las listas pero sin compartir con personas puntuales. Acceso: dueño, o miembro del grupo (owner/admin administran, member edita eventos). API en `/api/calendars`.
+> - Los grupos se crean vacíos. El calendario único de cada grupo con eventos pasó a ser un calendario "Calendario" del grupo (migración `group-calendars`, una sola vez, registrada en `app_migrations`); `calendar_entries` queda como respaldo.
+> - En la interfaz, un botón "Nuevo" crea una lista o un calendario y pregunta dónde (personal o un grupo). Rutas `/calendarios/:id`; `/grupos/:id/calendario` redirige al calendario del grupo.
+>
+> Lo que sigue describe el diseño original; donde no coincide, vale esta nota.
+
 ## 1. Objetivo
 
 Pasar de un modelo "código familiar = acceso a todo" a un modelo basado en **cuentas de usuario**:

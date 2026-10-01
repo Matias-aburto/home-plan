@@ -2,7 +2,7 @@ import { nanoid } from "nanoid";
 import { db, text } from "./client.js";
 import type { ListAccess, ListKind, ListRecord, ListSummary, SortMode } from "./types.js";
 
-export type ListInput = { name: string; kind: ListKind; icon: string; color: string };
+export type ListInput = { name: string; icon: string; color: string };
 
 const listColumns = `l.id, l.owner_user_id, l.family_id, l.name, l.kind, l.icon, l.color,
   l.created_by, l.created_at, l.updated_at, l.archived_at`;
@@ -91,10 +91,8 @@ export async function createList(userId: string, familyId: string | null, input:
   await db.batch([
     {
       sql: `INSERT INTO lists (id, owner_user_id, family_id, name, kind, icon, color, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        id, familyId ? null : userId, familyId, input.name, input.kind, input.icon, input.color, userId, now, now
-      ]
+        VALUES (?, ?, ?, ?, 'checklist', ?, ?, ?, ?, ?)`,
+      args: [id, familyId ? null : userId, familyId, input.name, input.icon, input.color, userId, now, now]
     },
     {
       sql: "INSERT INTO user_list_prefs (user_id, list_id, position) VALUES (?, ?, ?)",
@@ -136,9 +134,8 @@ export async function deleteList(listId: string) {
   ], "write");
 }
 
-// Cambia el dueño de la lista entre una persona y una familia. Las ubicaciones y los
-// responsables eran del dueño anterior, así que los ítems quedan como generales y sin asignar.
-// Las personas con quienes estaba compartida la siguen viendo.
+// Cambia el dueño de la lista entre una persona y un grupo. Las personas con quienes estaba
+// compartida la siguen viendo.
 export async function moveList(listId: string, target: { ownerUserId: string } | { familyId: string }) {
   const ownerUserId = "ownerUserId" in target ? target.ownerUserId : null;
   const familyId = "familyId" in target ? target.familyId : null;
@@ -146,10 +143,6 @@ export async function moveList(listId: string, target: { ownerUserId: string } |
     {
       sql: "UPDATE lists SET owner_user_id = ?, family_id = ?, updated_at = ? WHERE id = ?",
       args: [ownerUserId, familyId, new Date().toISOString(), listId]
-    },
-    {
-      sql: "UPDATE list_items SET location_id = NULL, assignee_user_id = NULL WHERE list_id = ?",
-      args: [listId]
     },
     // Quien pasa a ser dueño ya no necesita figurar como invitado.
     ...(ownerUserId ? [{ sql: "DELETE FROM list_members WHERE list_id = ? AND user_id = ?", args: [listId, ownerUserId] }] : [])

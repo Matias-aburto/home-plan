@@ -8,6 +8,7 @@ export type QueuedOperation = {
   // Qué hay que recargar cuando la operación se envía.
   familyId?: string;
   listId?: string;
+  calendarId?: string;
   createdAt: string;
   // Orden estricto de encolado: dos cambios pueden caer en el mismo milisegundo.
   seq?: number;

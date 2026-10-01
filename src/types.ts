@@ -1,15 +1,5 @@
 import type { QueuedOperation } from "./offline";
 
-export type Location = {
-  id: string;
-  name: string;
-};
-
-export type Suggestion = {
-  name: string;
-  category: string;
-};
-
 export type CalendarEntry = {
   id: string;
   title: string;
@@ -53,10 +43,8 @@ export type FamilyMember = {
 export type FamilyDetail = {
   family: FamilySummary;
   members: FamilyMember[];
-  locations: Location[];
 };
 
-export type ListKind = "shopping" | "tasks" | "checklist";
 export type ListAccess = "viewer" | "editor" | "owner";
 
 export type ListSummary = {
@@ -64,7 +52,6 @@ export type ListSummary = {
   ownerUserId: string | null;
   familyId: string | null;
   name: string;
-  kind: ListKind;
   icon: string;
   color: string;
   createdBy: string;
@@ -82,17 +69,12 @@ export type ListItem = {
   title: string;
   completed: boolean;
   position: number;
-  locationId: string | null;
-  assigneeUserId: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
   archivedAt: string | null;
 };
-
-// Quienes pueden ser responsables de una tarea (miembros de la familia de la lista).
-export type Assignable = Pick<FamilyMember, "userId" | "name" | "color" | "avatarUrl">;
 
 export type SharedMember = {
   userId: string;
@@ -106,9 +88,7 @@ export type SharedMember = {
 export type ListDetail = {
   list: ListSummary;
   items: ListItem[];
-  locations: Location[];
-  members: Assignable[];
-  // Personas con quienes está compartida la lista fuera de su dueño o familia.
+  // Personas con quienes está compartida la lista fuera de su dueño o grupo.
   sharedWith: SharedMember[];
 };
 
@@ -132,10 +112,31 @@ export type Me = {
   user: User;
   families: FamilySummary[];
   lists: ListSummary[];
+  calendars: CalendarSummary[];
   invitations: Invitation[];
 };
 
-export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId" | "listId">;
+// Calendario personal o de un grupo. No se comparte con personas puntuales.
+export type CalendarSummary = {
+  id: string;
+  ownerUserId: string | null;
+  familyId: string | null;
+  name: string;
+  icon: string;
+  color: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  access: "owner" | "editor";
+};
+
+export type CalendarDetail = {
+  calendar: CalendarSummary;
+  events: CalendarEntry[];
+};
+
+export type OfflineMutation = Omit<QueuedOperation, "id" | "createdAt" | "familyId" | "listId" | "calendarId">;
 export type SortMode = "custom" | "alpha";
 
 export type BeforeInstallPromptEvent = Event & {

@@ -60,14 +60,10 @@ export async function listMembers(familyId: string): Promise<FamilyMember[]> {
   }));
 }
 
-// Crea la familia con quien la crea como owner y dos listas iniciales.
+// Crea el grupo, vacío, con quien lo crea como owner.
 export async function createFamily(userId: string, name: string) {
   const id = nanoid(8).replace(/[-_]/g, "A").toUpperCase();
   const now = new Date().toISOString();
-  const lists = [
-    { id: nanoid(), name: "Compras", kind: "shopping", icon: "shopping-basket", color: "green" },
-    { id: nanoid(), name: "Por hacer", kind: "tasks", icon: "list-todo", color: "blue" }
-  ];
   await db.batch([
     {
       sql: "INSERT INTO families (id, name, created_at, created_by) VALUES (?, ?, ?, ?)",
@@ -76,12 +72,7 @@ export async function createFamily(userId: string, name: string) {
     {
       sql: "INSERT INTO family_members (family_id, user_id, role, joined_at) VALUES (?, ?, 'owner', ?)",
       args: [id, userId, now]
-    },
-    ...lists.map((list) => ({
-      sql: `INSERT INTO lists (id, owner_user_id, family_id, name, kind, icon, color, created_by, created_at, updated_at)
-        VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [list.id, id, list.name, list.kind, list.icon, list.color, userId, now, now]
-    }))
+    }
   ], "write");
   return id;
 }
@@ -101,6 +92,8 @@ export async function deleteFamily(familyId: string) {
     { sql: "DELETE FROM places WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM learned_names WHERE scope = ?", args: [`family:${key}`] },
     { sql: "DELETE FROM calendar_entries WHERE family_id = ?", args: [key] },
+    { sql: "DELETE FROM calendar_events WHERE calendar_id IN (SELECT id FROM calendars WHERE family_id = ?)", args: [key] },
+    { sql: "DELETE FROM calendars WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM family_members WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM invitations WHERE family_id = ?", args: [key] },
     { sql: "DELETE FROM families WHERE id = ?", args: [key] }
@@ -114,15 +107,9 @@ export async function setMemberRole(familyId: string, userId: string, role: Fami
   });
 }
 
-// Al salir, sus tareas asignadas en listas de la familia quedan sin asignar.
 export async function removeMember(familyId: string, userId: string) {
   const key = familyKey(familyId);
   await db.batch([
-    {
-      sql: `UPDATE list_items SET assignee_user_id = NULL
-        WHERE assignee_user_id = ? AND list_id IN (SELECT id FROM lists WHERE family_id = ?)`,
-      args: [userId, key]
-    },
     {
       sql: "DELETE FROM user_list_prefs WHERE user_id = ? AND list_id IN (SELECT id FROM lists WHERE family_id = ?)",
       args: [userId, key]

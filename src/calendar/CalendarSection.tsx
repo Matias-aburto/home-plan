@@ -1,19 +1,25 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ArchiveRestore, ChevronLeft, ChevronRight, Plus, Settings2 } from "lucide-react";
 import { CalendarEntryModal } from "./CalendarEntryModal";
 import { CalendarEntryRow } from "./CalendarEntryRow";
 import { compactDateFormatter, dateKey, dayFormatter, entriesOnDate, localDate, monthFormatter, occurrenceKey } from "../lib/calendar";
-import type { CalendarEntry, OfflineMutation } from "../types";
+import { ListIcon } from "../lists/listStyle";
+import type { CalendarEntry, CalendarSummary, OfflineMutation } from "../types";
 
 export function CalendarSection({
-  familyId,
+  calendar,
   entries,
-  onMutate
+  onMutate,
+  onOpenSettings,
+  onRestore
 }: {
-  familyId: string;
+  calendar: CalendarSummary;
   entries: CalendarEntry[];
   onMutate: (entries: CalendarEntry[], operation: OfflineMutation) => Promise<void>;
+  onOpenSettings: () => void;
+  onRestore: () => void;
 }) {
+  const eventsUrl = `/api/calendars/${calendar.id}/events`;
   const today = dateKey(new Date());
   const [month, setMonth] = useState(() => {
     const now = new Date();
@@ -76,7 +82,7 @@ export function CalendarSection({
     if (editing) {
       const updated = { ...editing, ...data, updatedAt: now };
       await onMutate(entries.map((entry) => entry.id === editing.id ? updated : entry), {
-        url: `/api/families/${familyId}/calendar/${editing.id}`,
+        url: `${eventsUrl}/${editing.id}`,
         method: "PATCH",
         body: data
       });
@@ -88,7 +94,7 @@ export function CalendarSection({
         updatedAt: now
       };
       await onMutate([...entries, entry], {
-        url: `/api/families/${familyId}/calendar`,
+        url: eventsUrl,
         method: "POST",
         body: { id: entry.id, ...data }
       });
@@ -99,7 +105,7 @@ export function CalendarSection({
 
   async function deleteEntry(entry: CalendarEntry) {
     await onMutate(entries.filter(({ id }) => id !== entry.id), {
-      url: `/api/families/${familyId}/calendar/${entry.id}`,
+      url: `${eventsUrl}/${entry.id}`,
       method: "DELETE"
     });
     setEditing(null);
@@ -108,11 +114,32 @@ export function CalendarSection({
   return (
     <section className="content calendar-content">
       <div className="content-heading calendar-heading">
-        <div className="title-only"><h2>Calendario</h2></div>
-        <button className="calendar-add-button" onClick={() => setCreating(true)}>
-          <Plus size={18} /> Nuevo
-        </button>
+        <div className="title-only list-title">
+          <ListIcon icon={calendar.icon} color={calendar.color} size={20} />
+          <h2>{calendar.name}</h2>
+        </div>
+        <div className="list-heading-actions">
+          {calendar.access === "owner" && (
+            <button className="manage-locations-button" onClick={onOpenSettings} aria-label="Ajustes del calendario">
+              <Settings2 size={17} />
+            </button>
+          )}
+          <button className="calendar-add-button" onClick={() => setCreating(true)}>
+            <Plus size={18} /> Nuevo
+          </button>
+        </div>
       </div>
+
+      {calendar.archivedAt && (
+        <div className="archived-banner">
+          <span>Este calendario está archivado.</span>
+          {calendar.access === "owner" && (
+            <button onClick={onRestore}>
+              <ArchiveRestore size={16} /> Restaurar
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="calendar-layout">
         <div className="calendar-card">

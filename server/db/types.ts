@@ -12,7 +12,23 @@ export type CalendarEntry = {
   updatedAt: string;
 };
 
-export type CalendarEntryInput = Pick<CalendarEntry, "title" | "kind" | "date" | "time" | "recurrence" | "notes">;
+// Calendario: como una lista, su dueño es una persona o un grupo.
+export type CalendarRecord = {
+  id: string;
+  ownerUserId: string | null;
+  familyId: string | null;
+  name: string;
+  icon: string;
+  color: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+};
+
+export type CalendarSummary = CalendarRecord & { access: "owner" | "editor" };
+
+export type CalendarEntryInput =Pick<CalendarEntry, "title" | "kind" | "date" | "time" | "recurrence" | "notes">;
 
 export type FamilyRole = "owner" | "admin" | "member";
 
@@ -68,8 +84,6 @@ export type ListItem = {
   title: string;
   completed: boolean;
   position: number;
-  locationId: string | null;
-  assigneeUserId: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

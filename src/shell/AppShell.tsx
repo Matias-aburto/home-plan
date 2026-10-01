@@ -7,7 +7,7 @@ import { useConnection } from "../data/ConnectionProvider";
 import { useMe } from "../data/MeProvider";
 import { Loading } from "../components/Loading";
 import { useFamilyDetail } from "../family/useFamilyDetail";
-import { NewListModal } from "../lists/NewListModal";
+import { CreateModal } from "../create/CreateModal";
 import type { User } from "../types";
 import { InstallPrompt } from "./InstallPrompt";
 import { NavContent } from "./NavContent";
@@ -33,16 +33,16 @@ export function AppShell({
   const { activeSpace, activeKey } = useNavigation();
   const { detail: familyDetail } = useFamilyDetail(activeSpace.familyId);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // undefined: cerrado; null: lista personal; string: lista de esa familia.
-  const [newListFamily, setNewListFamily] = useState<string | null | undefined>(undefined);
+  // undefined: cerrado; null: crear en lo personal; string: crear en ese grupo.
+  const [createIn, setCreateIn] = useState<string | null | undefined>(undefined);
 
   // Al volver a abrir la app se retoma la última lista o sección.
   useEffect(() => {
-    if (pathname.startsWith("/listas/") || pathname.startsWith("/grupos/")) localStorage.setItem(lastPathKey, pathname);
+    if (/^\/(listas|calendarios|grupos)\//.test(pathname)) localStorage.setItem(lastPathKey, pathname);
   }, [pathname]);
 
   // En móvil la barra inferior muestra las primeras entradas del espacio actual y el menú completo.
-  const barEntries = [...activeSpace.lists, ...activeSpace.links.slice(0, 1)].slice(0, 3);
+  const barEntries = [...activeSpace.lists, ...activeSpace.calendars].slice(0, 3);
   const members = familyDetail?.members ?? [];
   if (!loaded) return <Loading />;
 
@@ -94,7 +94,7 @@ export function AppShell({
 
       <div className="dashboard">
         <aside className="sidebar">
-          <NavContent onNewList={setNewListFamily} />
+          <NavContent onCreate={setCreateIn} />
         </aside>
         <Outlet />
       </div>
@@ -113,9 +113,9 @@ export function AppShell({
           </Link>
         ))}
         {barEntries.length < 3 && activeSpace.canCreate && (
-          <button className="nav-item" onClick={() => setNewListFamily(activeSpace.familyId)}>
+          <button className="nav-item" onClick={() => setCreateIn(activeSpace.familyId)}>
             <Plus size={20} />
-            <span>Nueva lista</span>
+            <span>Nuevo</span>
           </button>
         )}
         <button className="nav-item" onClick={() => setDrawerOpen(true)}>
@@ -133,16 +133,16 @@ export function AppShell({
             </header>
             <NavContent
               onNavigate={() => setDrawerOpen(false)}
-              onNewList={(familyId) => {
+              onCreate={(familyId) => {
                 setDrawerOpen(false);
-                setNewListFamily(familyId);
+                setCreateIn(familyId);
               }}
             />
           </section>
         </div>
       )}
-      {newListFamily !== undefined && (
-        <NewListModal familyId={newListFamily} onClose={() => setNewListFamily(undefined)} />
+      {createIn !== undefined && (
+        <CreateModal familyId={createIn} onClose={() => setCreateIn(undefined)} />
       )}
     </main>
   );

@@ -2,32 +2,33 @@ import { useState } from "react";
 import { ListChecks, Plus, Users } from "lucide-react";
 import { Link } from "react-router";
 import { useSession } from "../auth/AuthProvider";
+import { CreateModal } from "../create/CreateModal";
+import { SpaceCards } from "../create/SpaceCards";
 import { useMe } from "../data/MeProvider";
-import { NewListModal } from "./NewListModal";
-import { ListIcon, listKinds } from "./listStyle";
 
-// Vista general de las listas del usuario; también es la bienvenida cuando todavía no tiene ninguna.
+// Vista general de lo personal; también es la bienvenida cuando todavía no hay nada.
 export function PersonalHome() {
-  const { lists, families } = useMe();
+  const { lists, calendars, families } = useMe();
   const { user } = useSession();
   const [creating, setCreating] = useState(false);
   const activeLists = lists.filter((list) => list.ownerUserId === user?.id && !list.archivedAt);
+  const activeCalendars = calendars.filter((calendar) => calendar.ownerUserId === user?.id && !calendar.archivedAt);
+  const empty = activeLists.length === 0 && activeCalendars.length === 0;
 
   return (
     <section className="content">
       <div className="content-heading">
-        <div className="title-only"><h2>Mis listas</h2></div>
-        {activeLists.length > 0 && <span>{activeLists.length} {activeLists.length === 1 ? "lista" : "listas"}</span>}
+        <div className="title-only"><h2>Personal</h2></div>
       </div>
 
-      {activeLists.length === 0 ? (
+      {empty ? (
         <div className="empty-state welcome-empty animate-in">
           <div><ListChecks size={28} /></div>
-          <h3>Crea tu primera lista</h3>
-          <p>Compras, tareas o una checklist para lo que necesites. Solo tú la ves.</p>
+          <h3>Crea tu primera lista o calendario</h3>
+          <p>Para las compras, un viaje, pendientes o fechas importantes. Solo tú lo ves, salvo que lo compartas.</p>
           <div className="empty-state-actions">
             <button className="primary-button" onClick={() => setCreating(true)}>
-              <Plus size={18} /> Nueva lista
+              <Plus size={18} /> Nuevo
             </button>
             {families.length === 0 && (
               <Link className="secondary-button" to="/grupos/nuevo">
@@ -37,25 +38,9 @@ export function PersonalHome() {
           </div>
         </div>
       ) : (
-        <div className="list-cards">
-          {activeLists.map((list) => (
-            <Link key={list.id} className="list-card" to={`/listas/${list.id}`}>
-              <ListIcon icon={list.icon} color={list.color} size={20} />
-              <strong>{list.name}</strong>
-              <small>
-                {listKinds.find((option) => option.kind === list.kind)?.label}
-                {" · "}
-                {list.pendingCount ? `${list.pendingCount} pendiente${list.pendingCount === 1 ? "" : "s"}` : "Al día"}
-              </small>
-            </Link>
-          ))}
-          <button className="list-card new" onClick={() => setCreating(true)}>
-            <Plus size={20} />
-            <strong>Nueva lista</strong>
-          </button>
-        </div>
+        <SpaceCards lists={activeLists} calendars={activeCalendars} onCreate={() => setCreating(true)} />
       )}
-      {creating && <NewListModal onClose={() => setCreating(false)} />}
+      {creating && <CreateModal onClose={() => setCreating(false)} />}
     </section>
   );
 }

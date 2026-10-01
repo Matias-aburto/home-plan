@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { visibleCalendars } from "../db/calendars.js";
 import { userFamilies } from "../db/families.js";
 import { receivedInvitations } from "../db/invitations.js";
 import { setListOrder, visibleLists } from "../db/lists.js";
@@ -9,18 +10,20 @@ import { notifyUserChanged } from "../realtime.js";
 
 export const meRouter = Router();
 
-// Arranque de la app: familias, listas visibles e invitaciones pendientes recibidas.
+// Arranque de la app: grupos, listas y calendarios visibles, e invitaciones pendientes recibidas.
 meRouter.get("/", async (_request, response) => {
   const user = currentUser(response);
-  const [families, lists, invitations] = await Promise.all([
+  const [families, lists, calendars, invitations] = await Promise.all([
     userFamilies(user.id),
     visibleLists(user.id),
+    visibleCalendars(user.id),
     receivedInvitations(user.email)
   ]);
   response.json({
     user,
     families,
     lists,
+    calendars,
     invitations: invitations.map(({ invitedBy: _invitedBy, ...invitation }) => invitation)
   });
 });

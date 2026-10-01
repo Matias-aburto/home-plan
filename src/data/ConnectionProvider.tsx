@@ -115,10 +115,10 @@ export function ConnectionProvider({ user, familyIds, children }: { user: User; 
       });
       for (const familyId of familyKey ? familyKey.split(",") : []) {
         void client.channels.get(`family:${familyId}`).subscribe("family:changed", (message) => {
-          const data = (message.data ?? {}) as { listId?: string; calendar?: boolean };
-          // Con listId es un cambio en una lista; sin él, del calendario o de la familia (miembros, nombre).
-          if (data.listId) emitSyncEvent(syncEvents.meChanged, { listId: data.listId });
-          else emitSyncEvent(syncEvents.familyChanged, { familyId, calendar: Boolean(data.calendar) });
+          const data = (message.data ?? {}) as { listId?: string; calendarId?: string };
+          // Con listId o calendarId es un cambio en una lista o un calendario; sin ellos, del grupo (miembros, nombre).
+          if (data.listId || data.calendarId) emitSyncEvent(syncEvents.meChanged, data);
+          else emitSyncEvent(syncEvents.familyChanged, { familyId });
         });
       }
     }

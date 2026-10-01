@@ -86,7 +86,7 @@ export function CalendarEntryModal({
             </select>
           </label>
           <label>Notas <small>Opcional</small>
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={300} rows={3} placeholder="Detalles útiles para el grupo" />
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={300} rows={3} placeholder="Detalles útiles" />
           </label>
           <div className="calendar-modal-actions">
             {onDelete && (

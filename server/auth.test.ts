@@ -126,7 +126,7 @@ describe("sesión", () => {
   it("devuelve el arranque del usuario", async () => {
     const { agent, user } = await loginAgent();
     const response = await agent.get("/api/me").expect(200);
-    expect(response.body).toEqual({ user, families: [], lists: [], invitations: [] });
+    expect(response.body).toEqual({ user, families: [], lists: [], calendars: [], invitations: [] });
   });
 
   it("valida los cambios de perfil", async () => {

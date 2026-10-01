@@ -1,14 +1,16 @@
 # Listas (nombre provisorio)
 
-PWA de listas personales y compartidas: compras, tareas y checklists, solo o en grupos (familia, amigos, un depto compartido, un viaje), con calendario por grupo, sincronizadas en tiempo real y usables sin conexión.
+PWA de listas y calendarios, personales o en grupos (familia, amigos, un depto compartido, un viaje), sincronizados en tiempo real y usables sin conexión.
 
 El nombre de la app está en `src/lib/brand.tsx` (y en `index.html` / `vite.config.ts` para la PWA).
 
 ## Qué hace
 
 - **Cuentas con Google.** Cada persona entra con su cuenta; la sesión se guarda en una cookie httpOnly.
-- **Listas propias** de tres tipos: compras (con ubicaciones y sugerencias de productos), tareas y checklist. Se crean, renombran, archivan, reordenan y eliminan.
-- **Grupos.** Una persona puede estar en varios. Cada grupo tiene sus listas, su calendario y roles (dueño, administrador, miembro). Las tareas de un grupo se asignan a sus miembros. Internamente el código y la base siguen llamándolos `family`.
+- **Un botón "Nuevo"** para crear una lista o un calendario, personal o de uno de tus grupos, con nombre, ícono y color.
+- **Listas**: un solo tipo, ítems para marcar. Se renombran, archivan, reordenan y eliminan.
+- **Calendarios** con eventos y recordatorios (también anuales). Son personales o de un grupo; no se comparten con personas puntuales.
+- **Grupos.** Se crean vacíos. Una persona puede estar en varios, cada uno con sus listas, calendarios y roles (dueño, administrador, miembro). Internamente el código y la base siguen llamándolos `family`.
 - **Invitaciones** por email o enlace (un solo uso, vencen en 7 días), con bandeja para aceptar o rechazar.
 - **Compartir una lista** con personas puntuales, con permiso de edición o solo lectura. Las listas se pueden mover entre lo personal y un grupo.
 - **Sin conexión.** Los cambios se guardan en el dispositivo (IndexedDB) y se envían en orden al recuperar la red.
@@ -43,7 +45,7 @@ Las migraciones son idempotentes y se aplican al arrancar el servidor local (`np
 npm test
 ```
 
-- `server/*.test.ts`: API completa contra una base libSQL temporal (sesiones, permisos, listas, familias, invitaciones, compartir, y migrar sobre una base con el esquema anterior). Google se simula.
+- `server/*.test.ts`: API completa contra una base libSQL temporal (sesiones, permisos, listas, calendarios, grupos, invitaciones, compartir, y migrar sobre bases con esquemas anteriores). Google se simula.
 - `src/**/*.test.ts`: lógica del cliente (orden de listas, calendario y la cola offline con IndexedDB simulada).
 
 ## Producción (Vercel)

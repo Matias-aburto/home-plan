@@ -23,12 +23,12 @@ async function publish(channel: string, name: string, data: unknown) {
   }
 }
 
-// Algo de la familia cambió: una de sus listas (listId), el calendario o los miembros.
-export async function notifyFamilyChanged(familyId: string, data: { listId?: string; calendar?: boolean } = {}) {
+// Algo del grupo cambió: una lista (listId), un calendario (calendarId) o el grupo mismo (miembros, nombre).
+export async function notifyFamilyChanged(familyId: string, data: { listId?: string; calendarId?: string } = {}) {
   await publish(familyChannel(familyId), "family:changed", data);
 }
 
-export async function notifyUserChanged(userId: string, data: { listId?: string } = {}) {
+export async function notifyUserChanged(userId: string, data: { listId?: string; calendarId?: string } = {}) {
   await publish(userChannel(userId), "me:changed", data);
 }
 

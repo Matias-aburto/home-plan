@@ -3,12 +3,16 @@ import { ChevronDown, Plus, Users } from "lucide-react";
 import { Link } from "react-router";
 import { SortableList } from "../components/SortableList";
 import { useMe } from "../data/MeProvider";
-import { ListIcon } from "../lists/listStyle";
 import { useNavigation, type NavEntry, type NavSpace } from "./navigation";
 
-function EntryLink({ entry, active, onNavigate }: { entry: NavEntry; active: boolean; onNavigate?: () => void }) {
+function EntryLink({ entry, active, className = "", onNavigate }: {
+  entry: NavEntry;
+  active: boolean;
+  className?: string;
+  onNavigate?: () => void;
+}) {
   return (
-    <Link className={`nav-item ${active ? "active" : ""}`} to={entry.to} onClick={onNavigate} aria-current={active ? "page" : undefined}>
+    <Link className={`nav-item ${className} ${active ? "active" : ""}`} to={entry.to} onClick={onNavigate} aria-current={active ? "page" : undefined}>
       {entry.icon}
       <span>{entry.label}</span>
       {Boolean(entry.badge) && <b>{entry.badge}</b>}
@@ -20,30 +24,31 @@ function SpaceSection({
   space,
   activeKey,
   onNavigate,
-  onNewList
+  onCreate
 }: {
   space: NavSpace;
   activeKey: string | null;
   onNavigate?: () => void;
-  onNewList: (familyId: string | null) => void;
+  onCreate: (familyId: string | null) => void;
 }) {
   const { reorderLists } = useMe();
   const [showArchived, setShowArchived] = useState(false);
+  const empty = space.lists.length === 0 && space.calendars.length === 0;
 
   return (
     <div className="nav-section">
       <div className="nav-section-title">
         <Link to={space.to} onClick={onNavigate}>{space.title}</Link>
         {space.canCreate && (
-          <button className="nav-section-action" onClick={() => onNewList(space.familyId)} aria-label={`Nueva lista en ${space.title}`}>
+          <button className="nav-section-action" onClick={() => onCreate(space.familyId)} aria-label={`Crear en ${space.title}`}>
             <Plus size={16} />
           </button>
         )}
       </div>
-      {space.lists.length === 0 && space.key === "personal" ? (
-        <button className="nav-item nav-new-list" onClick={() => onNewList(null)}>
+      {empty && space.canCreate ? (
+        <button className="nav-item nav-new-list" onClick={() => onCreate(space.familyId)}>
           <span className="nav-icon"><Plus size={17} /></span>
-          <span>Crear mi primera lista</span>
+          <span>Crear nuevo</span>
         </button>
       ) : (
         <SortableList
@@ -57,24 +62,22 @@ function SpaceSection({
           )}
         />
       )}
-      {space.links.map((entry) => (
+      {[...space.calendars, ...space.links].map((entry) => (
         <EntryLink key={entry.key} entry={entry} active={activeKey === entry.key} onNavigate={onNavigate} />
       ))}
       {space.archived.length > 0 && (
         <>
           <button className={`nav-archived-toggle ${showArchived ? "open" : ""}`} onClick={() => setShowArchived(!showArchived)}>
-            <ChevronDown size={14} /> Archivadas · {space.archived.length}
+            <ChevronDown size={14} /> Archivados · {space.archived.length}
           </button>
-          {showArchived && space.archived.map((list) => (
-            <Link
-              key={list.id}
-              className={`nav-item archived ${activeKey === list.id ? "active" : ""}`}
-              to={`/listas/${list.id}`}
-              onClick={onNavigate}
-            >
-              <ListIcon icon={list.icon} color={list.color} size={16} />
-              <span>{list.name}</span>
-            </Link>
+          {showArchived && space.archived.map((entry) => (
+            <EntryLink
+              key={entry.key}
+              entry={{ ...entry, badge: undefined }}
+              className="archived"
+              active={activeKey === entry.key}
+              onNavigate={onNavigate}
+            />
           ))}
         </>
       )}
@@ -83,12 +86,12 @@ function SpaceSection({
 }
 
 // Menú completo con cada espacio. Se usa en la barra lateral y en el cajón móvil.
-export function NavContent({ onNavigate, onNewList }: { onNavigate?: () => void; onNewList: (familyId: string | null) => void }) {
+export function NavContent({ onNavigate, onCreate }: { onNavigate?: () => void; onCreate: (familyId: string | null) => void }) {
   const { spaces, activeKey, families } = useNavigation();
   return (
     <>
       {spaces.map((space) => (
-        <SpaceSection key={space.key} space={space} activeKey={activeKey} onNavigate={onNavigate} onNewList={onNewList} />
+        <SpaceSection key={space.key} space={space} activeKey={activeKey} onNavigate={onNavigate} onCreate={onCreate} />
       ))}
       <div className="nav-section">
         <Link className="nav-item nav-family-link" to="/grupos/nuevo" onClick={onNavigate}>

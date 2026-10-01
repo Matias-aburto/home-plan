@@ -1,6 +1,6 @@
 import { getMembership } from "../db/families.js";
 import { getListPermission } from "../db/listMembers.js";
-import type { ListAccess, ListRecord, User } from "../db/types.js";
+import type { CalendarRecord, ListAccess, ListRecord, User } from "../db/types.js";
 
 const levels: ListAccess[] = ["none", "viewer", "editor", "owner"];
 
@@ -20,6 +20,16 @@ export async function listAccess(user: User, list: ListRecord): Promise<ListAcce
   }
   const permission = await getListPermission(list.id, user.id);
   return permission ? highest(access, permission) : access;
+}
+
+// Calendarios: dueño, o miembro del grupo dueño (owner/admin administran, member edita eventos).
+// No se comparten con personas puntuales.
+export async function calendarAccess(user: User, calendar: CalendarRecord): Promise<ListAccess> {
+  if (calendar.ownerUserId === user.id) return "owner";
+  if (!calendar.familyId) return "none";
+  const role = await getMembership(calendar.familyId, user.id);
+  if (role === "owner" || role === "admin") return "owner";
+  return role === "member" ? "editor" : "none";
 }
 
 export function hasAccess(access: ListAccess, required: Exclude<ListAccess, "none">) {

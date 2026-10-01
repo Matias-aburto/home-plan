@@ -18,10 +18,11 @@ export function readIdList(input: unknown) {
   )];
 }
 
-export const listKinds = ["shopping", "tasks", "checklist"] as const;
 export const listIcons = [
-  "shopping-basket", "list-todo", "list-checks", "house", "gift", "plane",
-  "utensils", "book-open", "dumbbell", "heart", "star", "briefcase", "paw-print", "baby"
+  "list-checks", "list-todo", "shopping-cart", "shopping-basket", "hammer", "wrench", "house", "sofa", "bed",
+  "utensils", "cooking-pot", "coffee", "wine", "gift", "party-popper", "cake", "plane", "luggage", "tent", "car",
+  "bike", "dumbbell", "heart", "star", "briefcase", "book-open", "graduation-cap", "paw-print", "baby", "sprout",
+  "pill", "shirt", "music", "gamepad-2", "lightbulb", "calendar", "calendar-heart"
 ] as const;
 export const listColors = ["green", "blue", "amber", "rose", "violet", "teal"] as const;
 
