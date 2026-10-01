@@ -44,7 +44,8 @@ export function AppShell({
   // En móvil la barra inferior muestra las primeras entradas del espacio actual y el menú completo.
   // El calendario siempre tiene su lugar.
   const barEntries = [calendar, ...activeSpace.lists].slice(0, 3);
-  const members = familyDetail?.members ?? [];
+  // Los demás miembros del grupo: el usuario ya aparece en su botón de cuenta.
+  const members = (familyDetail?.members ?? []).filter(({ userId }) => userId !== user.id);
   if (!loaded) return <Loading />;
 
   return (
@@ -63,7 +64,8 @@ export function AppShell({
             <Link
               className="member-avatars"
               to={`/grupos/${activeSpace.familyId}/ajustes`}
-              aria-label={`Miembros: ${members.map(({ name }) => name).join(", ")}`}
+              aria-label={`Otros miembros: ${members.map(({ name }) => name).join(", ")}`}
+              title={members.map(({ name }) => name).join(", ")}
             >
               {members.slice(0, 3).map((member) => (
                 <UserAvatar
