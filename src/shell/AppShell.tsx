@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Download, House, Menu, Plus, X } from "lucide-react";
+import { Bell, House, Menu, Plus, X } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router";
 import { AccountMenu, UserAvatar } from "../components/AccountMenu";
 import { useConnection } from "../data/ConnectionProvider";
@@ -8,7 +8,9 @@ import { Loading } from "../components/Loading";
 import { useFamilyDetail } from "../family/useFamilyDetail";
 import { NewListModal } from "../lists/NewListModal";
 import type { User } from "../types";
+import { InstallPrompt } from "./InstallPrompt";
 import { NavContent } from "./NavContent";
+import { SyncStatus } from "./SyncStatus";
 import { useNavigation } from "./navigation";
 
 export const lastPathKey = "casa:lastPath";
@@ -25,7 +27,7 @@ export function AppShell({
   onLogout: (everywhere?: boolean) => Promise<void>;
 }) {
   const { pathname } = useLocation();
-  const { online, connected, everConnected, pendingCount, notice, dismissNotice } = useConnection();
+  const { notice, dismissNotice } = useConnection();
   const { invitations, loaded } = useMe();
   const { activeSpace, activeKey } = useNavigation();
   const { detail: familyDetail } = useFamilyDetail(activeSpace.familyId);
@@ -54,12 +56,7 @@ export function AppShell({
           </div>
         </Link>
         <div className="header-actions">
-          {canInstall && (
-            <button className="install-button" onClick={onInstall}>
-              <Download size={17} />
-              <span>Instalar</span>
-            </button>
-          )}
+          <SyncStatus />
           {activeSpace.familyId && members.length > 0 && (
             <Link
               className="member-avatars"
@@ -75,23 +72,17 @@ export function AppShell({
               {members.length > 3 && <span className="more-members">+{members.length - 3}</span>}
             </Link>
           )}
-          <span className={`connection-status ${connected && online && pendingCount === 0 ? "online" : ""} ${!online || pendingCount ? "attention" : ""}`}>
-            <i />
-            {!online
-              ? `Sin conexión${pendingCount ? ` · ${pendingCount} pendiente${pendingCount === 1 ? "" : "s"}` : ""}`
-              : pendingCount
-                ? `Sincronizando · ${pendingCount}`
-                : connected ? "Sincronizado" : everConnected ? "Reconectando" : "Conectando"}
-          </span>
           {invitations.length > 0 && (
             <Link className="invitations-button" to="/invitaciones" aria-label={`${invitations.length} ${invitations.length === 1 ? "invitación pendiente" : "invitaciones pendientes"}`}>
               <Bell size={18} />
               <b>{invitations.length}</b>
             </Link>
           )}
-          <AccountMenu user={user} onLogout={onLogout} />
+          <AccountMenu user={user} onLogout={onLogout} onInstall={canInstall ? onInstall : undefined} />
         </div>
       </header>
+
+      <InstallPrompt canInstall={canInstall} onInstall={onInstall} />
 
       {notice && (
         <div className="sync-notice" role="status">

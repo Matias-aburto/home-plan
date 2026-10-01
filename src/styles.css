@@ -357,48 +357,6 @@ textarea:focus-visible {
 }
 
 
-.connection-status {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #89938e;
-  font-size: 12px;
-}
-
-.connection-status i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #c89c5b;
-}
-
-.connection-status.online i {
-  background: #35a772;
-  box-shadow: 0 0 0 4px rgba(53, 167, 114, 0.1);
-}
-
-.share-button,
-.install-button {
-  height: 40px;
-  padding: 0 15px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--green);
-  background: var(--green-soft);
-  border: 0;
-  border-radius: 11px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.install-button {
-  color: #536159;
-  background: #f3f4f0;
-  border: 1px solid #e4e6e1;
-}
-
 .dashboard {
   min-height: calc(100vh - 86px);
   display: grid;
@@ -1718,27 +1676,9 @@ textarea:focus-visible {
   }
 
   .small-brand-mark { width: 38px; height: 38px; }
-  .family-identity h1 { max-width: 115px; font-size: 15px; }
-  .connection-status { display: none; }
-  .connection-status.attention {
-    position: fixed;
-    z-index: 11;
-    top: 80px;
-    right: 12px;
-    padding: 7px 10px;
-    display: flex;
-    color: #735b36;
-    background: #fff6e6;
-    border: 1px solid #f0dfbe;
-    border-radius: 10px;
-    box-shadow: 0 5px 18px rgba(55, 47, 34, .1);
-  }
+  .family-identity h1 { max-width: 52vw; font-size: 15px; }
   .header-actions { gap: 10px; }
   .member-avatars span { width: 31px; height: 31px; font-size: 11px; }
-  .install-button { width: 42px; padding: 0; justify-content: center; }
-  .install-button span { display: none; }
-  .share-button { width: 42px; padding: 0; justify-content: center; }
-  .share-button span { display: none; }
 
   .dashboard {
     min-height: calc(100vh - 72px);
@@ -2810,3 +2750,85 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 }
 
 .list-settings-sort + .list-move { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* Estado de sincronización: solo aparece cuando algo no está normal. */
+.sync-pill {
+  height: 30px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #735b36;
+  background: #fff6e6;
+  border: 1px solid #f0dfbe;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sync-pill.offline { color: #5d6b63; background: #eef0eb; border-color: #e0e3dd; }
+
+.spin { animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+/* Sugerencia de instalar la app (una sola vez). */
+.install-prompt {
+  position: relative;
+  margin: 12px clamp(16px, 4vw, 32px) 0;
+  padding: 12px 44px 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(31, 39, 35, .06);
+}
+
+.install-prompt-icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--green);
+  background: var(--green-soft);
+  border-radius: 11px;
+}
+
+.install-prompt p { min-width: 180px; flex: 1; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.install-prompt strong { display: block; color: var(--ink); font-size: 14px; }
+.install-prompt-actions { display: flex; align-items: center; gap: 6px; }
+.install-prompt-actions .primary-button { height: 38px; padding: 0 16px; }
+.install-prompt-actions .text-button { height: 38px; padding: 0 10px; }
+
+.install-prompt-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: #8d9791;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  /* En el teléfono la cabecera no tiene espacio: el estado flota bajo ella. */
+  .sync-pill {
+    position: fixed;
+    z-index: 11;
+    top: 80px;
+    right: 12px;
+    box-shadow: 0 5px 18px rgba(55, 47, 34, .1);
+  }
+
+  .install-prompt-actions { width: 100%; justify-content: flex-end; }
+}

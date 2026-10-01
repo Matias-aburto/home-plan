@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DoorOpen, LogOut, MonitorSmartphone, X } from "lucide-react";
+import { Download, LogOut, MonitorSmartphone, X } from "lucide-react";
 import type { User } from "../types";
 
 export function UserAvatar({ user, size = "normal" }: { user: User; size?: "normal" | "large" }) {
@@ -15,11 +15,12 @@ export function UserAvatar({ user, size = "normal" }: { user: User; size?: "norm
 export function AccountMenu({
   user,
   onLogout,
-  onLeaveFamily
+  onInstall
 }: {
   user: User;
   onLogout: (everywhere?: boolean) => Promise<void>;
-  onLeaveFamily?: () => void;
+  // Solo si la app se puede instalar en este dispositivo y todavía no lo está.
+  onInstall?: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -50,12 +51,12 @@ export function AccountMenu({
               <button onClick={() => setOpen(false)} aria-label="Cerrar"><X size={20} /></button>
             </header>
             <div className="account-actions">
-              {onLeaveFamily && (
+              {onInstall && (
                 <button onClick={() => {
                   setOpen(false);
-                  onLeaveFamily();
+                  void onInstall();
                 }}>
-                  <DoorOpen size={18} /> Salir de esta familia
+                  <Download size={18} /> Instalar app
                 </button>
               )}
               <button onClick={() => logout(false)} disabled={busy}>
