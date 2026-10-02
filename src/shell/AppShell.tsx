@@ -11,6 +11,7 @@ import { CreateModal } from "../create/CreateModal";
 import type { User } from "../types";
 import { InstallPrompt } from "./InstallPrompt";
 import { NavContent } from "./NavContent";
+import { calendarPin, listPin, maxPins, usePins } from "./pins";
 import { SyncStatus } from "./SyncStatus";
 import { useNavigation } from "./navigation";
 
@@ -29,8 +30,9 @@ export function AppShell({
 }) {
   const { pathname } = useLocation();
   const { notice, dismissNotice } = useConnection();
-  const { invitations, loaded } = useMe();
-  const { activeSpace, activeKey, calendar, onCalendar } = useNavigation();
+  const { invitations, loaded, lists } = useMe();
+  const { activeSpace, activeKey, home, calendar, pinEntry, onCalendar, onHome } = useNavigation();
+  const { pins } = usePins();
   const { detail: familyDetail } = useFamilyDetail(activeSpace.familyId);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // undefined: cerrado; null: crear en lo personal; string: crear en ese grupo.
@@ -38,12 +40,18 @@ export function AppShell({
 
   // Al volver a abrir la app se retoma la última lista o sección.
   useEffect(() => {
-    if (/^\/(listas\/|grupos\/|calendario$)/.test(pathname)) localStorage.setItem(lastPathKey, pathname);
+    if (/^\/(listas\/|grupos\/|calendario$|inicio$)/.test(pathname)) localStorage.setItem(lastPathKey, pathname);
   }, [pathname]);
 
   // En móvil la barra inferior muestra las primeras entradas del espacio actual y el menú completo.
-  // El calendario siempre tiene su lugar.
-  const barEntries = [calendar, ...activeSpace.lists].slice(0, 3);
+  // Barra del celular: Inicio, lo fijado (máximo dos) y Menú. Si nunca se fijó nada, se sugiere
+  // el calendario y la primera lista.
+  const firstList = lists.find((list) => !list.archivedAt);
+  const pinned = (pins ?? [calendarPin, ...(firstList ? [listPin(firstList.id)] : [])])
+    .map(pinEntry)
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .slice(0, maxPins);
+  const barEntries = [home, ...pinned];
   // Los demás miembros del grupo: el usuario ya aparece en su botón de cuenta.
   const members = (familyDetail?.members ?? []).filter(({ userId }) => userId !== user.id);
   if (!loaded) return <Loading />;
@@ -51,16 +59,16 @@ export function AppShell({
   return (
     <main className="app-shell">
       <header className="app-header">
-        <Link className="family-identity" to={activeSpace.to}>
+        <Link className="family-identity" to="/inicio">
           <div className="small-brand-mark"><BrandIcon /></div>
           <div>
             <span>{appName}</span>
-            <h1>{onCalendar ? "Calendario" : activeSpace.title}</h1>
+            <h1>{onCalendar ? "Calendario" : onHome ? "Inicio" : activeSpace.title}</h1>
           </div>
         </Link>
         <div className="header-actions">
           <SyncStatus />
-          {!onCalendar && activeSpace.familyId && members.length > 0 && (
+          {!onCalendar && !onHome && activeSpace.familyId && members.length > 0 && (
             <Link
               className="member-avatars"
               to={`/grupos/${activeSpace.familyId}/ajustes`}
@@ -117,12 +125,6 @@ export function AppShell({
             {Boolean(entry.badge) && <b>{entry.badge}</b>}
           </Link>
         ))}
-        {barEntries.length < 3 && activeSpace.canCreate && (
-          <button className="nav-item" onClick={() => setCreateIn(activeSpace.familyId)}>
-            <Plus size={20} />
-            <span>Nueva lista</span>
-          </button>
-        )}
         <button className="nav-item" onClick={() => setDrawerOpen(true)}>
           <Menu size={20} />
           <span>Menú</span>

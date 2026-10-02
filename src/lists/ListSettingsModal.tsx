@@ -5,6 +5,8 @@ import { api } from "../api/client";
 import { SortChips } from "../components/SortChips";
 import { useMe } from "../data/MeProvider";
 import type { ListDetail, SortMode } from "../types";
+import { PinButton } from "../shell/PinButton";
+import { listPin } from "../shell/pins";
 import { ListAppearanceFields } from "./ListAppearanceFields";
 
 export function ListSettingsModal({
@@ -121,6 +123,8 @@ export function ListSettingsModal({
             </div>
           </div>
         )}
+
+        <PinButton pin={listPin(list.id)} label="la lista" />
 
         {isOwner && (
           <div className="list-danger-zone">

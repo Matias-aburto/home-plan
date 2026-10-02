@@ -10,6 +10,7 @@ const lastSpaceKey = "casa:last-event-space";
 
 export function CalendarSection({
   heading,
+  actions,
   banner,
   spaces,
   visibleSpaces,
@@ -17,6 +18,7 @@ export function CalendarSection({
   onMutate
 }: {
   heading: ReactNode;
+  actions?: ReactNode;
   banner?: ReactNode;
   // Todos mis espacios (para elegir dónde va un evento) y los que se están mostrando.
   spaces: Space[];
@@ -125,6 +127,7 @@ export function CalendarSection({
       <div className="content-heading calendar-heading">
         {heading}
         <div className="list-heading-actions">
+          {actions}
           <button className="calendar-add-button" onClick={() => setCreating(true)}>
             <Plus size={18} /> Nuevo
           </button>
