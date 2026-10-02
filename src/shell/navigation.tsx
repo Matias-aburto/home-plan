@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, House } from "lucide-react";
 import { useLocation } from "react-router";
 import { useSession } from "../auth/AuthProvider";
 import { useMe } from "../data/MeProvider";
@@ -92,6 +92,14 @@ export function useNavigation() {
     }] : [])
   ];
 
+  // Inicio: todas las listas, agrupadas por espacio.
+  const home: NavEntry = {
+    key: "home",
+    to: "/inicio",
+    label: "Inicio",
+    icon: <span className="nav-icon"><House size={17} /></span>
+  };
+
   // Un solo calendario con los eventos de todos los espacios.
   const calendar: NavEntry = {
     key: "calendar",
@@ -104,6 +112,8 @@ export function useNavigation() {
   let activeSpaceKey = "personal";
   if (segments[1] === "calendario") {
     activeKey = "calendar";
+  } else if (segments[1] === "inicio") {
+    activeKey = "home";
   } else if (segments[1] === "listas") {
     activeKey = segments[2];
     const list = lists.find(({ id }) => id === segments[2]);
@@ -116,5 +126,12 @@ export function useNavigation() {
   }
   const activeSpace = spaces.find((space) => space.key === activeSpaceKey) ?? spaces[0];
 
-  return { spaces, activeSpace, activeKey, families, calendar, onCalendar: activeKey === "calendar" };
+  // Lo que se puede fijar en la barra del celular: el calendario o una lista (aunque esté en otro espacio).
+  function pinEntry(pin: string): NavEntry | null {
+    if (pin === "calendar") return calendar;
+    const found = lists.find((list) => `list:${list.id}` === pin && !list.archivedAt);
+    return found ? listEntry(found) : null;
+  }
+
+  return { spaces, activeSpace, activeKey, families, home, calendar, pinEntry, onCalendar: activeKey === "calendar", onHome: activeKey === "home" };
 }

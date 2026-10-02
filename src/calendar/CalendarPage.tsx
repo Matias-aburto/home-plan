@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { CalendarDays, Check, Palette, X } from "lucide-react";
+import { CalendarDays, Check, Palette, Pin, PinOff, X } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { Loading } from "../components/Loading";
 import { useMe } from "../data/MeProvider";
 import { listColorNames, listColors } from "../lists/listStyle";
+import { calendarPin, usePins } from "../shell/pins";
 import { CalendarSection } from "./CalendarSection";
 import { spaceKey, useSpaces, type Space } from "./spaces";
 import { useCalendarEvents } from "./useCalendarEvents";
@@ -27,6 +28,8 @@ export function CalendarPage() {
   const only = params.get("espacio");
   const [hidden, setHidden] = useState(readHidden);
   const [colorsOpen, setColorsOpen] = useState(false);
+  const { isPinned, togglePin } = usePins();
+  const pinned = isPinned(calendarPin);
 
   const isVisible = (space: Space) => only ? space.key === only : !hidden.has(space.key);
   const visibleSpaces = spaces.filter(isVisible);
@@ -57,6 +60,16 @@ export function CalendarPage() {
             <span className="list-icon list-color-neutral" aria-hidden="true"><CalendarDays size={20} /></span>
             <h2>Calendario</h2>
           </div>
+        )}
+        actions={(
+          <button
+            className={`manage-locations-button mobile-only ${pinned ? "pinned" : ""}`}
+            onClick={() => togglePin(calendarPin)}
+            aria-pressed={pinned}
+            aria-label={pinned ? "Quitar el calendario de la barra" : "Fijar el calendario en la barra"}
+          >
+            {pinned ? <PinOff size={17} /> : <Pin size={17} />}
+          </button>
         )}
         banner={spaces.length > 1 && (
           <div className="agenda-legend" role="group" aria-label="Espacios visibles">

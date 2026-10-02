@@ -97,11 +97,12 @@ function SpaceSection({
 
 // Menú completo con cada espacio. Se usa en la barra lateral y en el cajón móvil.
 export function NavContent({ onNavigate, onCreate }: { onNavigate?: () => void; onCreate: (familyId: string | null) => void }) {
-  const { spaces, activeKey, calendar } = useNavigation();
+  const { spaces, activeKey, home, calendar } = useNavigation();
   return (
     <>
       <div className="nav-scroll">
         <div className="nav-section nav-agenda">
+          <EntryLink entry={home} active={activeKey === "home"} onNavigate={onNavigate} />
           <EntryLink entry={calendar} active={activeKey === "calendar"} onNavigate={onNavigate} />
         </div>
         {spaces.map((space) => (

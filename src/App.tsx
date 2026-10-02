@@ -16,6 +16,7 @@ import { ListRoute } from "./lists/ListPage";
 import { PersonalHome } from "./lists/PersonalHome";
 import { SharedHome } from "./lists/SharedHome";
 import { AppShell } from "./shell/AppShell";
+import { HomePage } from "./shell/HomePage";
 import { HomeRedirect } from "./shell/HomeRedirect";
 import type { User } from "./types";
 
@@ -63,6 +64,7 @@ function SignedInApp({
         <Route path="invitacion/:token" element={<InvitationLanding user={user} onLogout={onLogout} />} />
         <Route element={<AppShell user={user} {...install} onLogout={onLogout} />}>
           <Route index element={<HomeRedirect />} />
+          <Route path="inicio" element={<HomePage />} />
           <Route path="personal" element={<PersonalHome />} />
           <Route path="compartidas" element={<SharedHome />} />
           <Route path="invitaciones" element={<InvitationsPage />} />

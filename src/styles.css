@@ -2566,3 +2566,47 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 .dashboard-main { min-width: 0; }
 .nav-scroll { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; }
 .nav-scroll > .nav-section + .nav-section { margin-top: 18px; }
+
+/* Inicio y fijados en la barra del celular */
+.mobile-only { display: none; }
+@media (max-width: 720px) {
+  .mobile-only { display: revert; }
+  button.mobile-only, .card-pin.mobile-only { display: inline-flex; }
+  .manage-locations-button.mobile-only { display: grid; }
+}
+.home-section { margin-top: 26px; }
+.home-section-title { display: inline-flex; align-items: center; gap: 4px; color: #6d7872; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-decoration: none; text-transform: uppercase; }
+.home-section .list-cards { margin-top: 10px; }
+.list-card-wrap { position: relative; display: grid; min-width: 0; }
+.card-pin {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  color: #a3aba6;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.card-pin.pinned { color: var(--green); background: var(--green-soft); }
+.pin-button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 0 14px;
+  align-items: center;
+  gap: 10px;
+  color: #34423b;
+  background: #f3f4f0;
+  border: 1px solid #e7e8e3;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pin-button.pinned { color: var(--green); background: var(--green-soft); border-color: transparent; }
+.manage-locations-button.pinned { color: var(--green); background: var(--green-soft); border-color: transparent; }
+.space-intro svg { vertical-align: -2px; }
