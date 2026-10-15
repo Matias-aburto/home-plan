@@ -6,6 +6,7 @@ import { calendarRouter } from "./routes/calendar.js";
 import { familiesRouter } from "./routes/families.js";
 import { familyInvitationsRouter, invitationsRouter } from "./routes/invitations.js";
 import { listsRouter } from "./routes/lists.js";
+import { mcpRouter } from "./routes/mcp.js";
 import { meRouter } from "./routes/me.js";
 import { realtimeRouter } from "./routes/realtime.js";
 
@@ -14,6 +15,8 @@ export const app = express();
 // Vercel y el proxy de Vite terminan HTTPS antes de llegar aquí: así request.secure y request.ip son correctos.
 app.set("trust proxy", true);
 app.use(express.json());
+// Antes del chequeo de origen y de la sesión: el MCP se autentica con su propio token.
+app.use("/api/mcp", mcpRouter);
 app.use("/api", requireSameOrigin);
 
 app.get("/api/health", (_request, response) => response.json({ ok: true, realtime: realtimeEnabled }));

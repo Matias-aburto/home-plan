@@ -2610,3 +2610,55 @@ button.nav-item { cursor: pointer; font-family: inherit; text-align: left; }
 .pin-button.pinned { color: var(--green); background: var(--green-soft); border-color: transparent; }
 .manage-locations-button.pinned { color: var(--green); background: var(--green-soft); border-color: transparent; }
 .space-intro svg { vertical-align: -2px; }
+
+/* Conexión con Claude (MCP) */
+.assistant-connections { margin-top: 18px; }
+.assistant-connections h3 { margin: 12px 0 0; font-family: "Manrope", sans-serif; font-size: 17px; }
+.account-modal .assistant-connections p { margin: 8px 0 14px; color: #5f6b65; font-size: 13px; }
+.account-modal .assistant-connections p.assistant-warning { margin-top: 10px; color: #a3542b; }
+
+.assistant-back {
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #6b766f;
+  background: none;
+  border: 0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.assistant-url { display: flex; gap: 8px; }
+
+.assistant-url input {
+  min-width: 0;
+  flex: 1;
+  min-height: 44px;
+  padding: 0 12px;
+  color: #34423b;
+  background: #f3f4f0;
+  border: 1px solid #e7e8e3;
+  border-radius: 12px;
+  font: 13px ui-monospace, monospace;
+}
+
+.assistant-url button,
+.assistant-list button {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: #34423b;
+  background: #f3f4f0;
+  border: 1px solid #e7e8e3;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.assistant-list { margin: 16px 0 0; padding: 0; display: grid; gap: 8px; list-style: none; }
+.assistant-list li { display: flex; align-items: center; gap: 10px; }
+.assistant-list li > div { min-width: 0; flex: 1; }
+.assistant-list strong { display: block; font-size: 14px; }
+.assistant-list span { display: block; color: #8a948e; font-size: 12px; }
