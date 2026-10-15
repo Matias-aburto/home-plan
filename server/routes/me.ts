@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createApiToken, deleteApiToken, userApiTokens } from "../db/apiTokens.js";
 import { getMembership, userFamilies } from "../db/families.js";
 import { receivedInvitations } from "../db/invitations.js";
 import { setListOrder, visibleLists } from "../db/lists.js";
@@ -61,4 +62,25 @@ meRouter.put("/list-order", async (request, response) => {
   await setListOrder(user.id, ids);
   await notifyUserChanged(user.id);
   return response.json({ ok: true });
+});
+
+// Conexiones con asistentes (MCP). El token completo solo se entrega al crearla.
+meRouter.get("/connections", async (_request, response) => {
+  return response.json(await userApiTokens(currentUser(response).id));
+});
+
+meRouter.post("/connections", async (request, response) => {
+  const name = cleanText(request.body.name, 40) || "Claude";
+  const { apiToken, token } = await createApiToken(currentUser(response).id, name);
+  return response.status(201).json({
+    connection: apiToken,
+    url: `${request.protocol}://${request.get("host")}/api/mcp/${token}`
+  });
+});
+
+meRouter.delete<{ id: string }>("/connections/:id", async (request, response) => {
+  if (!(await deleteApiToken(currentUser(response).id, request.params.id))) {
+    return response.status(404).json({ message: "No encontramos esa conexión." });
+  }
+  return response.status(204).send();
 });

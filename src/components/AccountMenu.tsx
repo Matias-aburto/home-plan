@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Download, LogOut, MonitorSmartphone, X } from "lucide-react";
+import { Bot, Download, LogOut, MonitorSmartphone, X } from "lucide-react";
 import type { User } from "../types";
+import { AssistantConnections } from "./AssistantConnections";
 
 export function UserAvatar({ user, size = "normal" }: { user: User; size?: "normal" | "large" }) {
   return (
@@ -25,6 +26,7 @@ export function AccountMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showConnections, setShowConnections] = useState(false);
 
   async function logout(everywhere: boolean) {
     setBusy(true);
@@ -37,7 +39,10 @@ export function AccountMenu({
 
   return (
     <>
-      <button className="account-button" onClick={() => setOpen(true)} aria-label={`Cuenta de ${user.name}`}>
+      <button className="account-button" onClick={() => {
+        setShowConnections(false);
+        setOpen(true);
+      }} aria-label={`Cuenta de ${user.name}`}>
         <UserAvatar user={user} />
       </button>
       {/* En <body>: dentro del header (que usa backdrop-filter) el fondo fijo quedaría limitado al header. */}
@@ -52,23 +57,30 @@ export function AccountMenu({
               </div>
               <button onClick={() => setOpen(false)} aria-label="Cerrar"><X size={20} /></button>
             </header>
-            <div className="account-actions">
-              {onInstall && (
-                <button onClick={() => {
-                  setOpen(false);
-                  void onInstall();
-                }}>
-                  <Download size={18} /> Instalar app
-                </button>
-              )}
-              <button onClick={() => logout(false)} disabled={busy}>
-                <LogOut size={18} /> Cerrar sesión
-              </button>
-              <button onClick={() => logout(true)} disabled={busy}>
-                <MonitorSmartphone size={18} /> Cerrar sesión en todos los dispositivos
-              </button>
-            </div>
-            <p>Al cerrar sesión se borran de este dispositivo los datos guardados y los cambios sin sincronizar.</p>
+            {showConnections ? <AssistantConnections onBack={() => setShowConnections(false)} /> : (
+              <>
+                <div className="account-actions">
+                  {onInstall && (
+                    <button onClick={() => {
+                      setOpen(false);
+                      void onInstall();
+                    }}>
+                      <Download size={18} /> Instalar app
+                    </button>
+                  )}
+                  <button onClick={() => setShowConnections(true)}>
+                    <Bot size={18} /> Conectar con Claude
+                  </button>
+                  <button onClick={() => logout(false)} disabled={busy}>
+                    <LogOut size={18} /> Cerrar sesión
+                  </button>
+                  <button onClick={() => logout(true)} disabled={busy}>
+                    <MonitorSmartphone size={18} /> Cerrar sesión en todos los dispositivos
+                  </button>
+                </div>
+                <p>Al cerrar sesión se borran de este dispositivo los datos guardados y los cambios sin sincronizar.</p>
+              </>
+            )}
           </section>
         </div>,
         document.body

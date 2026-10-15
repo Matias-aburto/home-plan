@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "ably": "^2.29.0",
     "express": "^5.1.0",
     "google-auth-library": "^11.1.0",
@@ -25,7 +26,8 @@
     "nanoid": "^5.0.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router": "^8.4.0"
+    "react-router": "^8.4.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

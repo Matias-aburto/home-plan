@@ -181,6 +181,16 @@ export async function migrate() {
       color TEXT NOT NULL,
       PRIMARY KEY (user_id, space)
     )`,
+    // Conexiones con asistentes (MCP). Como en sessions, solo se guarda el hash del token.
+    `CREATE TABLE IF NOT EXISTS api_tokens (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      last_used_at TEXT
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id)",
     // Cambios de datos que se aplican una sola vez.
     `CREATE TABLE IF NOT EXISTS app_migrations (
       name TEXT PRIMARY KEY,
